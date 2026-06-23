@@ -63,23 +63,24 @@ const SERVER_URL = "https://joker67.up.railway.app";
         grid-template-columns: 1fr;
         gap: 6px;
         align-items: center;
-        min-width: 150px;
+        min-width: 0;
         max-width: min(360px, calc(100vw - 28px));
-        border: 1px solid rgba(148, 163, 184, 0.45);
-        border-radius: 8px;
-        padding: 7px;
-        background: rgba(15, 23, 42, 0.88);
-        color: #f8fafc;
+        border: 0;
+        border-radius: 0;
+        padding: 0;
+        background: transparent;
+        color: #111827;
         font-family: Arial, sans-serif;
         font-size: 12px;
         line-height: 1.25;
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.85);
+        box-shadow: none;
         opacity: 0.5;
         user-select: none !important;
       }
 
       #${STATUS_ID} {
-        color: #cbd5e1;
+        color: #111827;
         font-weight: 700;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -89,7 +90,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       #${ANSWER_HINT_ID} {
         grid-column: 1 / -1;
         display: none;
-        color: #ffffff;
+        color: #111827;
         font-size: 13px;
         font-weight: 700;
         overflow-wrap: anywhere;
@@ -215,6 +216,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const { hint } = ensurePanel();
     hint.textContent = answerText;
     updatePanelVisibility();
+  }
+
+  function showAnswer(answerText) {
+    showAnswerHint(answerText);
+    setStatus("", 0);
   }
 
   function getMarkerRows(rows) {
@@ -1457,8 +1463,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
           bankAnswer: bankEntry.answerText,
           events: lastDebug.events || []
         };
-        showAnswerHint(bankEntry.answerText);
-        setStatus(bankEntry.answerText, 4500);
+        showAnswer(bankEntry.answerText);
         addDebugEvent("bank-hint", { answer: bankEntry.answerText });
         lastCompletedDebug = { ...lastDebug };
         return;
@@ -1486,7 +1491,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       answerCache.set(signature, bankAnswers);
       const markedCount = addMarkers(bankAnswers, getMarkerRows(optionPayload.rows));
       const bankHint = formatAnswerHints(bankAnswers);
-      showAnswerHint(bankHint);
+      showAnswer(bankHint);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-bank";
       lastDebug.answers = bankAnswers;
@@ -1494,9 +1499,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
         lastDebug.status = "used-bank-hint";
-        setStatus(bankHint, 4500);
       } else {
-        setStatus(bankHint, 4500);
+        setStatus("", 0);
       }
       addDebugEvent("bank-hit", { signature, markedCount, answers: bankAnswers });
       lastCompletedDebug = { ...lastDebug };
@@ -1506,11 +1510,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (answerCache.has(signature)) {
       const cachedAnswers = answerCache.get(signature);
       if (cachedAnswers.textAnswer) {
-        showAnswerHint(cachedAnswers.textAnswer);
+        showAnswer(cachedAnswers.textAnswer);
         lastAutoAskSignature = signature;
         lastDebug.status = "used-cache-hint";
         lastDebug.textAnswer = cachedAnswers.textAnswer;
-        setStatus(cachedAnswers.textAnswer, 4500);
         addDebugEvent("cache-hit", { signature, textAnswer: cachedAnswers.textAnswer });
         lastCompletedDebug = { ...lastDebug };
         return;
@@ -1518,7 +1521,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       const markedCount = addMarkers(cachedAnswers, getMarkerRows(optionPayload.rows));
       const cacheHint = formatAnswerHints(cachedAnswers);
-      showAnswerHint(cacheHint);
+      showAnswer(cacheHint);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-cache";
       lastDebug.answers = cachedAnswers;
@@ -1526,9 +1529,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
         lastDebug.status = "used-cache-hint";
-        setStatus(cacheHint, 4500);
       } else {
-        setStatus(cacheHint, 4500);
+        setStatus("", 0);
       }
       addDebugEvent("cache-hit", { signature, markedCount, answers: cachedAnswers });
       lastCompletedDebug = { ...lastDebug };
@@ -1590,10 +1592,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       if (data.textAnswer) {
         answerCache.set(signature, { textAnswer: data.textAnswer });
-        showAnswerHint(data.textAnswer);
+        showAnswer(data.textAnswer);
         lastDebug.status = "ai-hint";
         lastDebug.textAnswer = data.textAnswer;
-        setStatus(data.textAnswer, 4500);
         addDebugEvent("open-answer", { signature, textAnswer: data.textAnswer });
         lastCompletedDebug = { ...lastDebug };
         return;
@@ -1605,14 +1606,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
         answerCache.set(signature, answers);
         const markedCount = addMarkers(answers, getMarkerRows(optionPayload.rows));
         const answerHint = formatAnswerHints(answers);
-        showAnswerHint(answerHint);
+        showAnswer(answerHint);
         lastDebug.status = "marked";
         lastDebug.answerHint = answerHint;
         lastDebug.markedCount = markedCount;
         if (!markedCount) {
           lastDebug.status = "ai-hint";
         }
-        setStatus(answerHint, 4500);
         addDebugEvent("marked", { signature, markedCount, answers });
         lastCompletedDebug = { ...lastDebug };
       } else {
