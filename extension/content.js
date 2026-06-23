@@ -1,13 +1,15 @@
 const SERVER_URL = "https://joker67.up.railway.app";
 
 (function () {
-  const BUTTON_ID = "quiz-helper-ai-button";
-  const TOAST_ID = "quiz-helper-ai-toast";
-  const MARKER_CLASS = "quiz-helper-ai-plus-marker";
-  const HIGHLIGHT_CLASS = "quiz-helper-ai-answer-highlight";
-  const STYLE_ID = "quiz-helper-ai-style";
-  const OPTION_ID_ATTR = "data-quiz-helper-option-id";
+  const TOAST_ID = "page-notes-toast";
+  const MARKER_CLASS = "page-notes-marker";
+  const STYLE_ID = "page-notes-style";
+  const OPTION_ID_ATTR = "data-page-notes-option-id";
   const VALID_ANSWERS = new Set(["A", "B", "C", "D", "E"]);
+
+  let autoAskTimer = null;
+  let isAutoAsking = false;
+  let lastAutoAskSignature = "";
 
   function addStyles() {
     if (document.getElementById(STYLE_ID)) {
@@ -17,49 +19,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      #${BUTTON_ID} {
+      #${TOAST_ID} {
         position: fixed;
         top: 16px;
         right: 16px;
         z-index: 2147483647;
         box-sizing: border-box;
-        border: 0;
+        width: min(260px, calc(100vw - 32px));
         border-radius: 8px;
-        padding: 10px 14px;
-        min-width: 112px;
-        max-width: 180px;
-        background: #166534;
-        color: #ffffff;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        font-weight: 700;
-        line-height: 1.2;
-        cursor: pointer;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
-      }
-
-      #${BUTTON_ID}:hover {
-        background: #15803d;
-      }
-
-      #${BUTTON_ID}:disabled {
-        cursor: wait;
-        opacity: 0.75;
-      }
-
-      #${TOAST_ID} {
-        position: fixed;
-        top: 64px;
-        right: 16px;
-        z-index: 2147483647;
-        box-sizing: border-box;
-        width: min(280px, calc(100vw - 32px));
-        border-radius: 8px;
-        padding: 10px 12px;
+        padding: 9px 11px;
         background: #111827;
         color: #ffffff;
         font-family: Arial, sans-serif;
-        font-size: 13px;
+        font-size: 12px;
         line-height: 1.35;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
       }
@@ -75,20 +47,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     document.documentElement.appendChild(style);
   }
 
-  function createButton() {
-    if (document.getElementById(BUTTON_ID)) {
-      return;
-    }
-
-    const button = document.createElement("button");
-    button.id = BUTTON_ID;
-    button.type = "button";
-    button.textContent = "Спросить ИИ";
-    button.addEventListener("click", handleAskClick);
-    document.documentElement.appendChild(button);
-  }
-
-  function showToast(message, isError) {
+  function showToast(message) {
     const previousToast = document.getElementById(TOAST_ID);
     if (previousToast) {
       previousToast.remove();
@@ -97,24 +56,17 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const toast = document.createElement("div");
     toast.id = TOAST_ID;
     toast.textContent = message;
-    if (isError) {
-      toast.style.background = "#7f1d1d";
-    }
-
     document.documentElement.appendChild(toast);
 
     window.setTimeout(() => {
       if (toast.parentNode) {
         toast.remove();
       }
-    }, 4000);
+    }, 3500);
   }
 
   function clearPreviousMarkers() {
     document.querySelectorAll(`.${MARKER_CLASS}`).forEach((marker) => marker.remove());
-    document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach((element) => {
-      element.classList.remove(HIGHLIGHT_CLASS);
-    });
   }
 
   function normalizeAnswer(answer) {
@@ -124,6 +76,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     const normalized = answer.trim().toUpperCase();
     return VALID_ANSWERS.has(normalized) ? normalized : "UNKNOWN";
+  }
+
+  function normalizeOptionId(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    return value.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
   }
 
   function normalizeAnswers(data) {
@@ -138,19 +98,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     const answer = normalizeAnswer(data.answer);
-    if (answer === "UNKNOWN") {
-      return [];
-    }
-
-    return [{ questionNumber: 1, answer, optionId: "" }];
-  }
-
-  function normalizeOptionId(value) {
-    if (typeof value !== "string") {
-      return "";
-    }
-
-    return value.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+    return answer === "UNKNOWN" ? [] : [{ questionNumber: 1, answer, optionId: "" }];
   }
 
   function getVisibleText(element) {
@@ -171,11 +119,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function isOwnUi(element) {
-    return Boolean(
-      element.id === BUTTON_ID ||
-        element.id === TOAST_ID ||
-        element.closest(`#${BUTTON_ID}, #${TOAST_ID}`)
-    );
+    return Boolean(element.id === TOAST_ID || element.closest(`#${TOAST_ID}`));
   }
 
   function getLetterFromPrefix(element) {
@@ -204,18 +148,17 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     const letter = getOptionLetter(element);
-    if (!letter || text === letter) {
-      return false;
-    }
-
-    return true;
+    return Boolean(letter && text !== letter);
   }
 
   function scoreOptionRow(element) {
-    const text = getVisibleText(element);
     let score = 0;
 
     if (element.querySelector("input[type='radio'], input[type='checkbox']")) {
+      score += 10;
+    }
+
+    if (element.getAttribute("role") === "radio" || element.getAttribute("role") === "option") {
       score += 8;
     }
 
@@ -228,30 +171,37 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     if (["label", "li", "button"].includes(element.tagName.toLowerCase())) {
-      score += 2;
-    }
-
-    if (text.length <= 220) {
       score += 3;
     }
 
-    score -= Math.min(element.querySelectorAll("*").length, 30) / 10;
+    score -= Math.min(element.querySelectorAll("*").length, 40) / 10;
     return score;
   }
 
+  function compareDocumentOrder(a, b) {
+    const position = a.compareDocumentPosition(b);
+    if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+      return -1;
+    }
+
+    if (position & Node.DOCUMENT_POSITION_PRECEDING) {
+      return 1;
+    }
+
+    return 0;
+  }
+
   function collectOptionRows(root = document.body) {
-    const searchRoot = root || document.body;
     const rawCandidates = Array.from(
-      searchRoot.querySelectorAll("label, li, button, [role='radio'], [role='option'], div, p")
+      root.querySelectorAll("label, li, button, [role='radio'], [role='option'], div, p")
     )
       .filter((element) => !isOwnUi(element) && isLikelyOptionRow(element))
       .map((element) => ({
         element,
         letter: getOptionLetter(element),
         score: scoreOptionRow(element)
-      }));
-
-    rawCandidates.sort((a, b) => b.score - a.score);
+      }))
+      .sort((a, b) => b.score - a.score);
 
     const selected = [];
     rawCandidates.forEach((candidate) => {
@@ -268,21 +218,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       }
     });
 
-    selected.sort((a, b) => {
-      const position = a.element.compareDocumentPosition(b.element);
-      if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
-        return -1;
-      }
-
-      if (position & Node.DOCUMENT_POSITION_PRECEDING) {
-        return 1;
-      }
-
-      return 0;
-    });
-
+    selected.sort((a, b) => compareDocumentOrder(a.element, b.element));
     selected.forEach((row, index) => {
-      const optionId = row.element.getAttribute(OPTION_ID_ATTR) || `qh-opt-${index + 1}`;
+      const optionId = row.element.getAttribute(OPTION_ID_ATTR) || `pn-opt-${index + 1}`;
       row.element.setAttribute(OPTION_ID_ATTR, optionId);
       row.optionId = optionId;
     });
@@ -294,9 +232,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const groups = [];
     let currentGroup = {};
     let previousLetterIndex = -1;
+    const letters = ["A", "B", "C", "D", "E"];
 
     rows.forEach((row) => {
-      const letterIndex = ["A", "B", "C", "D", "E"].indexOf(row.letter);
+      const letterIndex = letters.indexOf(row.letter);
       const shouldStartNewGroup =
         row.letter === "A" ||
         currentGroup[row.letter] ||
@@ -318,6 +257,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return groups.filter((group) => Object.keys(group).length >= 2);
   }
 
+  function cleanOptionText(text, letter) {
+    return text
+      .replace(new RegExp(`^\\s*\\(?\\s*${letter}\\s*\\)?\\s*[:.\\-]?\\s*`, "i"), "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function buildOptionPayload(rows, groups) {
     const groupByElement = new Map();
     groups.forEach((group, groupIndex) => {
@@ -334,26 +280,35 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }));
   }
 
-  function cleanOptionText(text, letter) {
-    return text
-      .replace(new RegExp(`^\\s*\\(?\\s*${letter}\\s*\\)?\\s*[:.\\-]?\\s*`, "i"), "")
-      .replace(/\s+/g, " ")
-      .trim();
+  function buildAskPayload() {
+    const rows = collectOptionRows();
+    const groups = groupOptionRows(rows);
+
+    return {
+      text: document.body ? document.body.innerText : "",
+      options: buildOptionPayload(rows, groups)
+    };
   }
 
-  function findElementByOptionId(optionId) {
-    const safeOptionId = normalizeOptionId(optionId);
-    if (!safeOptionId) {
-      return null;
-    }
+  function findMarkerTarget(answerElement, letter) {
+    const descendants = Array.from(answerElement.querySelectorAll("span, p, div, strong, em, b"));
+    const textTargets = descendants
+      .filter((element) => {
+        const text = getVisibleText(element);
+        return text.length > 3 && text !== letter && !element.querySelector("input, textarea, select");
+      })
+      .sort((a, b) => getVisibleText(a).length - getVisibleText(b).length);
 
-    return document.querySelector(`[${OPTION_ID_ATTR}="${safeOptionId}"]`);
+    return textTargets[0] || answerElement;
   }
 
   function findAnswerElement(answer, answerIndex, groups) {
-    const optionElement = findElementByOptionId(answer.optionId);
-    if (optionElement) {
-      return optionElement;
+    const optionId = normalizeOptionId(answer.optionId);
+    if (optionId) {
+      const element = document.querySelector(`[${OPTION_ID_ATTR}="${optionId}"]`);
+      if (element) {
+        return element;
+      }
     }
 
     const directGroup = groups[answer.questionNumber - 1];
@@ -372,19 +327,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return null;
   }
 
-  function findMarkerTarget(answerElement, letter) {
-    const descendants = Array.from(answerElement.querySelectorAll("span, p, div, strong, em, b"));
-    const textTargets = descendants
-      .filter((element) => {
-        const text = getVisibleText(element);
-        return text.length > 3 && text !== letter && !element.querySelector("input, textarea, select");
-      })
-      .sort((a, b) => getVisibleText(a).length - getVisibleText(b).length);
-
-    return textTargets[0] || answerElement;
-  }
-
-  function addPlusMarker(answerElement, letter) {
+  function addMarker(answerElement, letter) {
     if (!answerElement) {
       return false;
     }
@@ -392,55 +335,56 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const marker = document.createElement("span");
     marker.className = MARKER_CLASS;
     marker.textContent = "..";
-    marker.title = `Предполагаемый ответ: ${letter}`;
+    marker.title = `Note ${letter}`;
 
-    const markerTarget = findMarkerTarget(answerElement, letter);
-    markerTarget.appendChild(marker);
+    findMarkerTarget(answerElement, letter).appendChild(marker);
     return true;
   }
 
-  function addPlusMarkers(answers) {
+  function addMarkers(answers) {
     clearPreviousMarkers();
 
-    const optionRows = collectOptionRows();
-    const groups = groupOptionRows(optionRows);
+    const rows = collectOptionRows();
+    const groups = groupOptionRows(rows);
     let markedCount = 0;
 
-    answers.forEach((item, index) => {
-      const answerElement = findAnswerElement(item, index, groups);
-      const markerAdded = addPlusMarker(answerElement, item.answer);
-      if (markerAdded) {
+    answers.forEach((answer, index) => {
+      if (addMarker(findAnswerElement(answer, index, groups), answer.answer)) {
         markedCount += 1;
       }
     });
 
-    return {
-      markedCount,
-      optionRowCount: optionRows.length,
-      groupCount: groups.length
-    };
+    return markedCount;
   }
 
-  function buildAskPayload() {
-    const optionRows = collectOptionRows();
-    const groups = groupOptionRows(optionRows);
-
-    return {
-      text: document.body ? document.body.innerText : "",
-      options: buildOptionPayload(optionRows, groups)
-    };
+  function getAutoAskSignature(payload) {
+    return payload.options
+      .map((option) => `${option.groupNumber}:${option.letter}:${option.text}`)
+      .join("|");
   }
 
-  async function handleAskClick() {
-    const button = document.getElementById(BUTTON_ID);
-    if (!button) {
+  function scheduleAutoAsk(delay = 900) {
+    window.clearTimeout(autoAskTimer);
+    autoAskTimer = window.setTimeout(runAutoAsk, delay);
+  }
+
+  async function runAutoAsk() {
+    if (isAutoAsking) {
       return;
     }
 
-    clearPreviousMarkers();
-    button.disabled = true;
-    button.textContent = "Думаю...";
-    showToast("Ищу ответы...", false);
+    const payload = buildAskPayload();
+    if (payload.options.length < 2) {
+      return;
+    }
+
+    const signature = getAutoAskSignature(payload);
+    if (signature === lastAutoAskSignature && document.querySelector(`.${MARKER_CLASS}`)) {
+      return;
+    }
+
+    isAutoAsking = true;
+    lastAutoAskSignature = signature;
 
     try {
       const response = await fetch(`${SERVER_URL}/ask`, {
@@ -448,36 +392,39 @@ const SERVER_URL = "https://joker67.up.railway.app";
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(buildAskPayload())
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json().catch(() => ({}));
-
       if (!response.ok) {
-        const errorMessage = data.error || `Сервер вернул ошибку ${response.status}`;
-        throw new Error(errorMessage);
+        throw new Error(data.error || `Server error ${response.status}`);
       }
 
       const answers = normalizeAnswers(data);
-      if (!answers.length) {
-        showToast("ИИ не уверен в ответах.", false);
-        return;
-      }
-
-      const result = addPlusMarkers(answers);
-      if (result.markedCount > 0) {
-        showToast(`Плюсиков поставлено: ${result.markedCount}`, false);
-      } else {
-        showToast(`Не нашёл строки вариантов. Найдено строк: ${result.optionRowCount}, групп: ${result.groupCount}.`, false);
+      if (answers.length) {
+        addMarkers(answers);
       }
     } catch (error) {
-      showToast(`Ошибка: ${error.message}`, true);
+      showToast(`Error: ${error.message}`);
     } finally {
-      button.disabled = false;
-      button.textContent = "Спросить ИИ";
+      isAutoAsking = false;
     }
   }
 
+  function startAutoMode() {
+    scheduleAutoAsk(1200);
+
+    const observer = new MutationObserver(() => {
+      scheduleAutoAsk(1200);
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+
   addStyles();
-  createButton();
+  startAutoMode();
 })();
