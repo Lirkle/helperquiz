@@ -31,7 +31,7 @@ README.md
 OPENAI_API_KEY=your_openai_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 PRIMARY_PROVIDER=openai
-AI_PROVIDER_TIMEOUT_MS=4500
+AI_PROVIDER_TIMEOUT_MS=3000
 ```
 
 Опционально можно задать модели:
@@ -203,7 +203,7 @@ npm start
 OPENAI_API_KEY=your_openai_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 PRIMARY_PROVIDER=openai
-AI_PROVIDER_TIMEOUT_MS=4500
+AI_PROVIDER_TIMEOUT_MS=3000
 OPENAI_MODEL=gpt-5.4
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```

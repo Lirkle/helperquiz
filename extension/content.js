@@ -8,7 +8,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
   const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const VALID_ANSWERS = new Set(OPTION_LETTERS);
-  const ASK_TIMEOUT_MS = 12000;
+  const ASK_TIMEOUT_MS = 8000;
 
   let autoAskTimer = null;
   let isAutoAsking = false;
@@ -346,8 +346,18 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return false;
     }
 
+    if (isLikelyQuizUiControl(text)) {
+      return false;
+    }
+
     const letter = getOptionLetter(element);
     return Boolean((letter && text !== letter) || hasOptionInput(element) || hasOptionRole(element));
+  }
+
+  function isLikelyQuizUiControl(text) {
+    return /^(сложный|ответить!?|спросить|голос|выбери один вариант(?:\s*\([^)]+\))?|закрепление:.*|выбери.*вариант)$/i.test(
+      text.trim()
+    );
   }
 
   function scoreOptionRow(element) {
