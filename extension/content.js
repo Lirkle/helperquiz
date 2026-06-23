@@ -18,6 +18,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     status: "not-started",
     events: []
   };
+  let lastCompletedDebug = null;
 
   function addStyles() {
     if (document.getElementById(STYLE_ID)) {
@@ -208,7 +209,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       currentSignature: getAutoAskSignature(payload),
       currentPayload: payload,
       markerCount: markerTextEdits.length,
-      cacheSize: answerCache.size
+      cacheSize: answerCache.size,
+      lastCompletedDebug
     };
     const text = JSON.stringify(report, null, 2);
 
@@ -794,6 +796,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.answers = cachedAnswers;
       lastDebug.markedCount = markedCount;
       addDebugEvent("cache-hit", { signature, markedCount, answers: cachedAnswers });
+      lastCompletedDebug = { ...lastDebug };
       return;
     }
 
@@ -841,9 +844,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
         lastDebug.status = "marked";
         lastDebug.markedCount = markedCount;
         addDebugEvent("marked", { signature, markedCount, answers });
+        lastCompletedDebug = { ...lastDebug };
       } else {
         lastDebug.status = "no-answers";
         addDebugEvent("no-answers", { signature, data });
+        lastCompletedDebug = { ...lastDebug };
       }
     } catch (error) {
       lastDebug.status = "error";
