@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Quiz Helper AI",
+  "name": "Page Notes",
   "version": "1.0.0",
-  "description": "Adds a page button that asks an AI backend for a likely quiz answer letter.",
+  "description": "Adds small page-side notes for personal reading.",
   "host_permissions": [
     "https://joker67.up.railway.app/*"
   ],
