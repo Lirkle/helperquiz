@@ -141,7 +141,7 @@ https://railway.app/
 
 2. Создайте новый проект.
 3. Выберите деплой из GitHub repository или загрузите проект через Railway CLI.
-4. Убедитесь, что Railway запускает backend из папки `server`.
+4. Railway может запускать проект из корня репозитория, потому что в корне есть `package.json` с npm workspace для `server`.
 5. В настройках сервиса добавьте переменную окружения:
 
 ```text
@@ -164,6 +164,12 @@ npm start
 
 ```text
 server
+```
+
+Если root directory остаётся `/`, используйте команду запуска:
+
+```bash
+npm start
 ```
 
 ## Как получить Railway domain

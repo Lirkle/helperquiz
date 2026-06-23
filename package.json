@@ -1,0 +1,16 @@
+{
+  "name": "helperquiz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension and Railway backend for quiz answer training assistance.",
+  "workspaces": [
+    "server"
+  ],
+  "scripts": {
+    "start": "npm --workspace server start",
+    "dev": "npm --workspace server run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
