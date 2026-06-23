@@ -116,7 +116,7 @@ online
 Готовый архив можно скачать с Railway:
 
 ```text
-https://daniksuper.up.railway.app/download-extension
+https://daniksuper.up.railway.app/dwn
 ```
 
 Также есть страница с кнопкой скачивания:

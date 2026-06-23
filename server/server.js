@@ -79,13 +79,16 @@ app.get("/extension", (req, res) => {
     <main>
       <h1>Quiz Helper AI</h1>
       <p>Скачай архив расширения, распакуй его и загрузи папку extension через chrome://extensions/.</p>
-      <a href="/download-extension">Скачать расширение</a>
+      <a href="/dwn">Скачать расширение</a>
     </main>
   </body>
 </html>`);
 });
 
-app.get("/download-extension", (req, res, next) => {
+app.get("/dwn", downloadExtension);
+app.get("/download-extension", downloadExtension);
+
+function downloadExtension(req, res, next) {
   const extensionDirectory = path.resolve(__dirname, "..", "extension");
 
   res.attachment("quiz-helper-extension.zip");
@@ -103,7 +106,7 @@ app.get("/download-extension", (req, res, next) => {
   archive.pipe(res);
   archive.directory(extensionDirectory, "extension");
   archive.finalize();
-});
+}
 
 app.post("/ask", async (req, res, next) => {
   try {
