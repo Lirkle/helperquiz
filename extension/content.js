@@ -1477,7 +1477,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
           events: lastDebug.events || []
         };
         showAnswerHint(bankEntry.answerText);
-        setStatus("bank hint", 4500);
+        setStatus(bankEntry.answerText, 4500);
         addDebugEvent("bank-hint", { answer: bankEntry.answerText });
         lastCompletedDebug = { ...lastDebug };
         return;
@@ -1513,9 +1513,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
         lastDebug.status = "used-bank-hint";
-        setStatus("bank hint", 4500);
+        setStatus(bankHint, 4500);
       } else {
-        setStatus("bank done", 3000);
+        setStatus(bankHint, 4500);
       }
       addDebugEvent("bank-hit", { signature, markedCount, answers: bankAnswers });
       lastCompletedDebug = { ...lastDebug };
@@ -1529,7 +1529,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         lastAutoAskSignature = signature;
         lastDebug.status = "used-cache-hint";
         lastDebug.textAnswer = cachedAnswers.textAnswer;
-        setStatus("cache hint", 4500);
+        setStatus(cachedAnswers.textAnswer, 4500);
         addDebugEvent("cache-hit", { signature, textAnswer: cachedAnswers.textAnswer });
         lastCompletedDebug = { ...lastDebug };
         return;
@@ -1545,9 +1545,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
         lastDebug.status = "used-cache-hint";
-        setStatus("cache hint", 4500);
+        setStatus(cacheHint, 4500);
       } else {
-        setStatus("cache done", 3000);
+        setStatus(cacheHint, 4500);
       }
       addDebugEvent("cache-hit", { signature, markedCount, answers: cachedAnswers });
       lastCompletedDebug = { ...lastDebug };
@@ -1612,7 +1612,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         showAnswerHint(data.textAnswer);
         lastDebug.status = "ai-hint";
         lastDebug.textAnswer = data.textAnswer;
-        setStatus("AI hint", 4500);
+        setStatus(data.textAnswer, 4500);
         addDebugEvent("open-answer", { signature, textAnswer: data.textAnswer });
         lastCompletedDebug = { ...lastDebug };
         return;
@@ -1631,7 +1631,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         if (!markedCount) {
           lastDebug.status = "ai-hint";
         }
-        setStatus(markedCount ? "AI done" : "AI hint", 4500);
+        setStatus(answerHint, 4500);
         addDebugEvent("marked", { signature, markedCount, answers });
         lastCompletedDebug = { ...lastDebug };
       } else {
