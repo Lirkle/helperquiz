@@ -228,7 +228,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function formatAnswerHint(answer) {
-    const parts = [answer.answer, answer.answerText].filter(Boolean);
+    const parts = [answer.showLetter ? answer.answer : "", answer.answerText].filter(Boolean);
+    if (!parts.length && answer.answer) {
+      return answer.answer;
+    }
+
     return parts.join(" - ");
   }
 
@@ -470,6 +474,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         questionNumber: Number(matchedOption.groupNumber) || 1,
         answer: matchedOption.letter,
         optionId: matchedOption.optionId,
+        showLetter: Boolean(matchedOption.hasRealLetter),
         answerText: questionEntry.answerText
       }
     ];
@@ -765,6 +770,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .map((element) => ({
         element,
         letter: getOptionLetter(element),
+        hasRealLetter: Boolean(getOptionLetter(element)),
         groupKey: getOptionGroupKey(element),
         inputType: getOptionInputType(element),
         score: scoreOptionRow(element)
@@ -793,6 +799,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         const groupKey = row.groupKey || "default";
         const letterIndex = syntheticLetterIndexes.get(groupKey) || 0;
         row.letter = OPTION_LETTERS[letterIndex] || OPTION_LETTERS[OPTION_LETTERS.length - 1];
+        row.hasRealLetter = false;
         syntheticLetterIndexes.set(groupKey, letterIndex + 1);
       }
 
@@ -943,6 +950,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       groupNumber: groupByElement.get(row.element) || 0,
       inputType: row.inputType || "",
       letter: row.letter,
+      hasRealLetter: Boolean(row.hasRealLetter),
       text: cleanOptionText(getVisibleText(row.element), row.letter)
     }));
   }
@@ -1038,6 +1046,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
         numberedOptions.push({
           letter: OPTION_LETTERS[numberedOptions.length],
+          hasRealLetter: false,
           text: lines[index + 1]
         });
       }
@@ -1064,6 +1073,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
           questionText: line.slice(0, firstOptionIndex).trim(),
           options: inlineNumberMatches.map((match, index) => ({
             letter: OPTION_LETTERS[index],
+            hasRealLetter: false,
             text: cleanOptionText(match[2], OPTION_LETTERS[index])
           }))
         };
@@ -1078,6 +1088,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
           questionText: line.slice(0, firstOptionIndex).trim(),
           options: inlineMatches.map((match) => ({
             letter: match[1].toUpperCase(),
+            hasRealLetter: true,
             text: cleanOptionText(match[2], match[1].toUpperCase())
           }))
         };
@@ -1093,6 +1104,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
         options.push({
           letter: explicitMatch[1].toUpperCase(),
+          hasRealLetter: true,
           text: explicitMatch[2].trim()
         });
         implicitOptionMode = true;
@@ -1104,6 +1116,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         if (letter && !isLikelyQuizUiControl(line)) {
           options.push({
             letter,
+            hasRealLetter: false,
             text: line
           });
           return;
@@ -1133,6 +1146,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         questionText: lines.slice(0, optionStartIndex).join(" "),
         options: optionLines.slice(0, OPTION_LETTERS.length).map((line, index) => ({
           letter: OPTION_LETTERS[index],
+          hasRealLetter: false,
           text: cleanOptionText(line, OPTION_LETTERS[index])
         }))
       };
@@ -1171,6 +1185,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         optionId,
         groupNumber: 1,
         inputType: row?.inputType || "",
+        hasRealLetter: Boolean(option.hasRealLetter || row?.hasRealLetter),
         element: row?.element || null
       };
     });
@@ -1240,6 +1255,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
           .map((option) => ({
             element: option.element,
             letter: option.letter,
+            hasRealLetter: Boolean(option.hasRealLetter),
             optionId: option.optionId,
             inputType: option.inputType || ""
           }))
@@ -1386,13 +1402,17 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function attachAnswerTexts(answers, options) {
     return answers.map((answer) => {
+      const option = options.find((item) => item.letter === answer.answer);
       if (answer.answerText) {
-        return answer;
+        return {
+          ...answer,
+          showLetter: answer.showLetter ?? Boolean(option?.hasRealLetter)
+        };
       }
 
-      const option = options.find((item) => item.letter === answer.answer);
       return {
         ...answer,
+        showLetter: Boolean(option?.hasRealLetter),
         answerText: option?.text || answer.answerText || ""
       };
     });
