@@ -416,7 +416,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .join("|");
   }
 
-  function scheduleAutoAsk(delay = 2000) {
+  function scheduleAutoAsk(delay = 0) {
     if (autoAskTimer) {
       return;
     }
