@@ -565,7 +565,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function hasAnswerMarker(element) {
-    return /\.\.\s*$/.test(getVisibleText(element));
+    return /(?:\.\.)+\s*$/.test(getVisibleText(element));
   }
 
   function selectActiveRows(rows) {
@@ -610,7 +610,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   function stripMarkerSuffixes(text) {
     return text
       .split("\n")
-      .map((line) => line.replace(/\s*\.\.\s*$/g, ""))
+      .map((line) => line.replace(/\s*(?:\.\.)+\s*$/g, ""))
       .join("\n");
   }
 
@@ -743,6 +743,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function addMarker(answerElement, letter) {
     if (!answerElement) {
+      return false;
+    }
+
+    if (hasAnswerMarker(answerElement)) {
       return false;
     }
 
