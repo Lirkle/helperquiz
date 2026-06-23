@@ -5,8 +5,8 @@ const OpenAI = require("openai");
 const app = express();
 const port = process.env.PORT || 3000;
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 
 const SYSTEM_PROMPT =
