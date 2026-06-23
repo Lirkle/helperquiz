@@ -12,7 +12,7 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 
 const SYSTEM_PROMPT =
-  "Ты помощник для учебной тренировки. Тебе дадут текст страницы и, если удалось извлечь DOM-варианты, массив options с optionId, groupNumber, letter и text. Для каждого вопроса выбери правильный вариант только из переданных options. Верни только JSON без markdown в формате: {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\",\"optionId\":\"qh-opt-1\"}]}. Если options нет, верни questionNumber и answer. Не выдумывай вопросы, номера или optionId. Если не уверен, верни UNKNOWN.";
+  "You are a study quiz assistant. You receive pageText and, when detected, an options array with optionId, groupNumber, inputType, letter, and text. Choose answers only from the provided options. For radio/single-choice questions, return one best option. For checkbox/multiple-choice questions, return every correct option as separate objects in answers, using the same questionNumber if needed. Return only JSON, no markdown, exactly like {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\",\"optionId\":\"pn-opt-1\"},{\"questionNumber\":1,\"answer\":\"C\",\"optionId\":\"pn-opt-3\"}]}. Do not invent questions, numbers, letters, or optionIds. If unsure, return {\"answers\":[]}.";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -277,10 +277,19 @@ function normalizeOptions(value) {
     .map((item) => ({
       optionId: normalizeOptionId(item.optionId),
       groupNumber: Number(item.groupNumber),
+      inputType: normalizeInputType(item.inputType),
       letter: normalizeAnswer(item.letter),
       text: typeof item.text === "string" ? item.text.trim().slice(0, 500) : ""
     }))
     .filter((item) => item.optionId && item.letter !== "UNKNOWN" && item.text);
+}
+
+function normalizeInputType(value) {
+  if (value === "checkbox" || value === "radio" || value === "choice") {
+    return value;
+  }
+
+  return "";
 }
 
 function normalizeOptionId(value) {

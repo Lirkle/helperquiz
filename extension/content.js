@@ -182,6 +182,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return input.name || input.getAttribute("data-name") || "";
   }
 
+  function getOptionInputType(element) {
+    const input = getOptionInput(element);
+    if (!input) {
+      return hasOptionRole(element) ? "choice" : "";
+    }
+
+    return input.type === "checkbox" ? "checkbox" : "radio";
+  }
+
   function getAssociatedLabel(input) {
     if (!input || input.tagName.toLowerCase() !== "input") {
       return null;
@@ -309,6 +318,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         element,
         letter: getOptionLetter(element),
         groupKey: getOptionGroupKey(element),
+        inputType: getOptionInputType(element),
         score: scoreOptionRow(element)
       }))
       .sort((a, b) => b.score - a.score);
@@ -393,6 +403,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return rows.map((row) => ({
       optionId: row.optionId,
       groupNumber: groupByElement.get(row.element) || 0,
+      inputType: row.inputType || "",
       letter: row.letter,
       text: cleanOptionText(getVisibleText(row.element), row.letter)
     }));
