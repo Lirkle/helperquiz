@@ -1,4 +1,4 @@
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "https://daniksuper.up.railway.app";
 
 (function () {
   const BUTTON_ID = "quiz-helper-ai-button";
