@@ -631,6 +631,37 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }));
   }
 
+  function getSelectionText() {
+    return stripMarkerSuffixes(window.getSelection()?.toString() || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getSelectionElement() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return null;
+    }
+
+    const node = selection.getRangeAt(0).commonAncestorContainer;
+    return node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  }
+
+  function findSelectionOptionRows(selectionElement) {
+    let element = selectionElement;
+
+    while (element && element !== document.body) {
+      const rows = collectOptionRows(element);
+      if (rows.length >= 2) {
+        return rows;
+      }
+
+      element = element.parentElement;
+    }
+
+    return selectActiveRows(collectOptionRows());
+  }
+
   function getFocusedQuizText(rows, options) {
     const firstRow = rows[0]?.element;
     if (!firstRow) {
@@ -664,20 +695,32 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return `Current quiz question and options:\n${questionText}\n\nDetected options:\n${optionLines}`;
   }
 
-  function buildOptionOnlyPayload() {
-    const rows = selectActiveRows(collectOptionRows());
+  function buildOptionOnlyPayload(selectionText = "") {
+    const selectionElement = selectionText ? getSelectionElement() : null;
+    const rows = selectionElement
+      ? findSelectionOptionRows(selectionElement)
+      : selectActiveRows(collectOptionRows());
     const groups = groupOptionRows(rows);
     const options = buildOptionPayload(rows, groups);
 
     return {
       rows,
-      options
+      options,
+      selectionText
     };
   }
 
   function buildAskPayload(optionPayload = buildOptionOnlyPayload()) {
+    const selectedQuestion = optionPayload.selectionText || "";
+    const focusedText = selectedQuestion
+      ? `Selected quiz question:\n${selectedQuestion}`
+      : getFocusedQuizText(optionPayload.rows, optionPayload.options);
+    const optionLines = optionPayload.options
+      .map((option) => `${option.letter}. ${option.text}`)
+      .join("\n");
+
     return {
-      text: getFocusedQuizText(optionPayload.rows, optionPayload.options),
+      text: `${focusedText}\n\nDetected options:\n${optionLines}`,
       options: optionPayload.options
     };
   }
@@ -777,8 +820,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return true;
   }
 
-  function addMarkers(answers) {
-    const rows = collectOptionRows();
+  function addMarkers(answers, rows = collectOptionRows()) {
     const groups = groupOptionRows(rows);
     let markedCount = 0;
 
@@ -792,9 +834,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function getAutoAskSignature(payload) {
-    return payload.options
+    const questionPart = normalizeBankText(payload.text || "");
+    const optionsPart = payload.options
       .map((option) => `${option.groupNumber}:${option.letter}:${option.text}`)
       .join("|");
+
+    return `${questionPart}::${optionsPart}`;
   }
 
   function payloadHasMarker(payload) {
@@ -805,26 +850,36 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
   }
 
-  function scheduleAutoAsk(delay = 0) {
+  function scheduleSelectionAsk(delay = 120) {
     if (autoAskTimer) {
-      return;
+      window.clearTimeout(autoAskTimer);
     }
 
     autoAskTimer = window.setTimeout(() => {
       autoAskTimer = null;
-      runAutoAsk();
+      runAutoAsk(getSelectionText());
     }, delay);
   }
 
-  async function runAutoAsk() {
+  async function runAutoAsk(selectionText = "") {
     if (isAutoAsking) {
       addDebugEvent("skip", { reason: "already-running" });
       return;
     }
 
-    const optionPayload = buildOptionOnlyPayload();
+    if (!selectionText || selectionText.length < 3) {
+      lastDebug = {
+        status: "no-selection",
+        at: new Date().toISOString(),
+        events: lastDebug.events || []
+      };
+      addDebugEvent("skip", { reason: "no-selection" });
+      return;
+    }
+
+    const optionPayload = buildOptionOnlyPayload(selectionText);
     const payload = {
-      text: "",
+      text: selectionText,
       options: optionPayload.options
     };
     if (payload.options.length < 2) {
@@ -857,7 +912,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const bankAnswers = findBankAnswers(payload);
     if (bankAnswers.length) {
       answerCache.set(signature, bankAnswers);
-      const markedCount = addMarkers(bankAnswers);
+      const markedCount = addMarkers(bankAnswers, optionPayload.rows);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-bank";
       lastDebug.answers = bankAnswers;
@@ -869,7 +924,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     if (answerCache.has(signature)) {
       const cachedAnswers = answerCache.get(signature);
-      const markedCount = addMarkers(cachedAnswers);
+      const markedCount = addMarkers(cachedAnswers, optionPayload.rows);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-cache";
       lastDebug.answers = cachedAnswers;
@@ -911,9 +966,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
         throw new Error(data.error || `Server error ${response.status}`);
       }
 
-      const currentOptionPayload = buildOptionOnlyPayload();
+      const currentSelectionText = getSelectionText();
+      const currentOptionPayload = buildOptionOnlyPayload(currentSelectionText);
       const currentPayload = {
-        text: "",
+        text: currentSelectionText,
         options: currentOptionPayload.options
       };
       if (getAutoAskSignature(currentPayload) !== signature) {
@@ -923,7 +979,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
           requestSignature: signature,
           currentSignature: getAutoAskSignature(currentPayload)
         });
-        scheduleAutoAsk();
         return;
       }
 
@@ -931,7 +986,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.answers = answers;
       if (answers.length) {
         answerCache.set(signature, answers);
-        const markedCount = addMarkers(answers);
+        const markedCount = addMarkers(answers, optionPayload.rows);
         lastDebug.status = "marked";
         lastDebug.markedCount = markedCount;
         addDebugEvent("marked", { signature, markedCount, answers });
@@ -952,24 +1007,20 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
   }
 
-  function startAutoMode() {
-    scheduleAutoAsk();
-
-    const observer = new MutationObserver(() => {
-      scheduleAutoAsk();
+  function startSelectionMode() {
+    document.addEventListener("selectionchange", () => {
+      scheduleSelectionAsk();
     });
 
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      characterData: true
+    document.addEventListener("mouseup", () => {
+      scheduleSelectionAsk();
     });
 
-    window.setInterval(() => {
-      scheduleAutoAsk();
-    }, 500);
+    document.addEventListener("keyup", () => {
+      scheduleSelectionAsk();
+    });
   }
 
   addStyles();
-  startAutoMode();
+  startSelectionMode();
 })();
