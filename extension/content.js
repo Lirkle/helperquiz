@@ -8,6 +8,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
   const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const VALID_ANSWERS = new Set(OPTION_LETTERS);
+  const ASK_TIMEOUT_MS = 12000;
 
   let autoAskTimer = null;
   let isAutoAsking = false;
@@ -805,13 +806,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
     lastDebug.status = "requesting";
     addDebugEvent("request", { signature, optionCount: payload.options.length });
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, ASK_TIMEOUT_MS);
+
     try {
       const response = await fetch(`${SERVER_URL}/ask`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
 
       const data = await response.json().catch(() => ({}));
@@ -852,10 +859,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       }
     } catch (error) {
       lastDebug.status = "error";
-      lastDebug.error = error.message;
-      addDebugEvent("error", { message: error.message });
-      showToast(`Error: ${error.message}`);
+      lastDebug.error = error.name === "AbortError" ? "Request timeout" : error.message;
+      addDebugEvent("error", { message: lastDebug.error });
+      showToast(`Error: ${lastDebug.error}`);
     } finally {
+      window.clearTimeout(timeoutId);
       isAutoAsking = false;
     }
   }

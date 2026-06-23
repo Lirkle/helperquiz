@@ -11,6 +11,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4";
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 const PRIMARY_PROVIDER = normalizeProvider(process.env.PRIMARY_PROVIDER) || "openai";
+const AI_PROVIDER_TIMEOUT_MS = normalizePositiveInteger(process.env.AI_PROVIDER_TIMEOUT_MS, 4500);
 
 const SYSTEM_PROMPT =
   "You are a study quiz assistant. You receive pageText and, when detected, an options array with optionId, groupNumber, inputType, letter, and text. Choose answers only from the provided options. Solve from the question and option text; ignore UI feedback such as Correct, Incorrect, Правильно, Неправильно, colors, buttons, timers, ads, and old answers. For radio/single-choice questions, return one best option. For checkbox/multiple-choice questions, return every correct option as separate objects in answers, using the same questionNumber if needed. For checkbox questions be conservative: select an option only when it directly and independently satisfies the exact question wording; do not select related-but-wrong, movable, immovable, opposite, or merely same-topic options. If a checkbox option is not clearly correct, omit it. Return only JSON, no markdown, exactly like {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\",\"optionId\":\"pn-opt-1\"},{\"questionNumber\":1,\"answer\":\"C\",\"optionId\":\"pn-opt-3\"}]}. Do not invent questions, numbers, letters, or optionIds. If unsure, return {\"answers\":[]}.";
@@ -184,6 +185,11 @@ function normalizeProvider(value) {
   return provider === "openai" || provider === "deepseek" ? provider : "";
 }
 
+function normalizePositiveInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
 function getProviderOrder() {
   return PRIMARY_PROVIDER === "deepseek" ? ["deepseek", "openai"] : ["openai", "deepseek"];
 }
@@ -208,7 +214,9 @@ function getProviderConfig(provider) {
 async function askProvider({ provider, apiKey, baseURL, model, text, options }) {
   const client = new OpenAI({
     apiKey,
-    baseURL
+    baseURL,
+    timeout: AI_PROVIDER_TIMEOUT_MS,
+    maxRetries: 0
   });
 
   const completion = await client.chat.completions.create({
@@ -386,6 +394,7 @@ function getErrorMessage(error) {
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
   console.log(`Primary provider: ${PRIMARY_PROVIDER}`);
+  console.log(`AI provider timeout: ${AI_PROVIDER_TIMEOUT_MS}ms`);
   console.log(`OpenAI model: ${OPENAI_MODEL}`);
   console.log(`DeepSeek model: ${DEEPSEEK_MODEL}`);
 });
