@@ -9,6 +9,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const VALID_ANSWERS = new Set(OPTION_LETTERS);
   const ASK_TIMEOUT_MS = 8000;
+  const MAX_GROUPS_PER_REQUEST = 4;
 
   let autoAskTimer = null;
   let isAutoAsking = false;
@@ -136,7 +137,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (Array.isArray(data.answers)) {
       return data.answers
         .map((item, index) => ({
-          questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
+          questionNumber: Number(item.questionNumber || item.groupNumber || item.number || item.question || index + 1),
           answer: normalizeAnswer(item.answer || item.letter || item.correct),
           optionId: normalizeOptionId(item.optionId || item.id)
         }))
@@ -572,6 +573,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (scoredGroups.length > 1) {
       return scoredGroups
         .sort((a, b) => compareDocumentOrder(a.group[0].element, b.group[0].element))
+        .slice(0, MAX_GROUPS_PER_REQUEST)
         .flatMap((item) => item.group);
     }
 
