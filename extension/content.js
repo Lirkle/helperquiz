@@ -69,18 +69,18 @@ const SERVER_URL = "https://joker67.up.railway.app";
         border-radius: 0;
         padding: 0;
         background: transparent;
-        color: #111827;
+        color: #ffffff;
         font-family: Arial, sans-serif;
         font-size: 12px;
         line-height: 1.25;
-        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.85);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
         box-shadow: none;
         opacity: 0.5;
         user-select: none !important;
       }
 
       #${STATUS_ID} {
-        color: #111827;
+        color: #ffffff;
         font-weight: 700;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -90,7 +90,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       #${ANSWER_HINT_ID} {
         grid-column: 1 / -1;
         display: none;
-        color: #111827;
+        color: #ffffff;
         font-size: 13px;
         font-weight: 700;
         overflow-wrap: anywhere;
