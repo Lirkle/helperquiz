@@ -338,6 +338,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function findBankAnswers(payload) {
     const payloadOptions = payload.options || [];
+    const questionEntry = findBankEntryByQuestion(payload.text || "");
     if (payloadOptions.length < 2) {
       return [];
     }
@@ -356,7 +357,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         item.match.matchedOptions >= Math.min(3, payloadOptions.length) ||
         (item.match.questionMatched && item.match.matchedOptions >= 1)
       )
-      .sort((a, b) => b.match.score - a.match.score)[0]?.entry;
+      .sort((a, b) => b.match.score - a.match.score)[0]?.entry || questionEntry;
 
     if (!bestEntry) {
       return [];
@@ -851,7 +852,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const rawLines = String(selectionText || "")
       .split(/\r?\n/)
       .map((line) => stripMarkerSuffixes(line).trim())
-      .filter(Boolean);
+      .filter((line) => line && !isLikelyQuizUiControl(line));
     const lines = [];
     for (let index = 0; index < rawLines.length; index += 1) {
       if (/^[A-E]$/i.test(rawLines[index]) && rawLines[index + 1]) {
@@ -867,7 +868,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     if (lines.length === 1) {
       const line = lines[0];
-      const inlineOptionPattern = /(?:^|\s)([A-E])[\).:\-]\s+([\s\S]*?)(?=\s+[A-E][\).:\-]\s+|$)/gi;
+      const inlineOptionPattern = /(?:^|\s)([A-E])(?:[\).:\-]|\s)\s+([\s\S]*?)(?=\s+[A-E](?:[\).:\-]|\s)\s+|$)/g;
       const inlineMatches = Array.from(line.matchAll(inlineOptionPattern));
 
       if (inlineMatches.length >= 2) {
@@ -883,8 +884,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     lines.forEach((line) => {
-      const explicitMatch = line.match(/^\s*(?:\(?\s*([A-E])\s*\)?\s*[\).:\-])\s+(.+)$/i);
+      const explicitMatch = line.match(/^\s*(?:\(?\s*([A-E])\s*\)?\s*[\).:\-]?)\s+(.+)$/i);
       if (explicitMatch) {
+        if (isLikelyQuizUiControl(explicitMatch[2])) {
+          return;
+        }
+
         options.push({
           letter: explicitMatch[1].toUpperCase(),
           text: explicitMatch[2].trim()
@@ -895,7 +900,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       if (implicitOptionMode || (questionLines.length > 0 && options.length > 0)) {
         const letter = OPTION_LETTERS[options.length];
-        if (letter) {
+        if (letter && !isLikelyQuizUiControl(line)) {
           options.push({
             letter,
             text: line
@@ -908,7 +913,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
 
     if (options.length < 2 && lines.length >= 3) {
-      const optionLines = lines.slice(1);
+      const optionLines = lines.slice(1).filter((line) => !isLikelyQuizUiControl(line));
       return {
         questionText: lines[0],
         options: optionLines.slice(0, OPTION_LETTERS.length).map((line, index) => ({
