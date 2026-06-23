@@ -409,13 +409,45 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }));
   }
 
+  function getFocusedQuizText(rows, options) {
+    const firstRow = rows[0]?.element;
+    if (!firstRow) {
+      return document.body ? document.body.innerText : "";
+    }
+
+    const optionTextLength = options.reduce((total, option) => total + option.text.length, 0);
+    let element = firstRow;
+    let bestText = "";
+
+    while (element && element !== document.body) {
+      const text = getVisibleText(element);
+      if (
+        text.length > optionTextLength + 20 &&
+        text.length < 5000 &&
+        options.every((option) => text.includes(option.text))
+      ) {
+        bestText = text;
+      }
+
+      element = element.parentElement;
+    }
+
+    const questionText = bestText || (document.body ? document.body.innerText.slice(0, 5000) : "");
+    const optionLines = options
+      .map((option) => `${option.letter}. ${option.text}`)
+      .join("\n");
+
+    return `Current quiz question and options:\n${questionText}\n\nDetected options:\n${optionLines}`;
+  }
+
   function buildAskPayload() {
     const rows = collectOptionRows();
     const groups = groupOptionRows(rows);
+    const options = buildOptionPayload(rows, groups);
 
     return {
-      text: document.body ? document.body.innerText : "",
-      options: buildOptionPayload(rows, groups)
+      text: getFocusedQuizText(rows, options),
+      options
     };
   }
 
