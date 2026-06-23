@@ -23,6 +23,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
   let lastCompletedDebug = null;
 
   function addStyles() {
+    document.getElementById(TOAST_ID)?.remove();
+    document.getElementById(DEBUG_BUTTON_ID)?.remove();
+
     if (document.getElementById(STYLE_ID)) {
       return;
     }
@@ -30,23 +33,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      #${TOAST_ID} {
-        position: fixed;
-        top: 16px;
-        right: 16px;
-        z-index: 2147483647;
-        box-sizing: border-box;
-        width: min(260px, calc(100vw - 32px));
-        border-radius: 8px;
-        padding: 9px 11px;
-        background: #111827;
-        color: #ffffff;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        line-height: 1.35;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
-      }
-
       .${MARKER_CLASS} {
         display: inline;
         margin-left: 3px;
@@ -55,49 +41,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
         line-height: inherit;
       }
 
-      #${DEBUG_BUTTON_ID} {
-        position: fixed;
-        right: 16px;
-        bottom: 16px;
-        z-index: 2147483647;
-        box-sizing: border-box;
-        min-width: 64px;
-        min-height: 32px;
-        border: 0;
-        border-radius: 8px;
-        padding: 0 10px;
-        background: #0f172a;
-        color: #ffffff;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        font-weight: 700;
-        cursor: pointer;
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-      }
-
-      #${DEBUG_BUTTON_ID}:hover {
-        background: #1e293b;
-      }
     `;
     document.documentElement.appendChild(style);
   }
 
   function showToast(message) {
-    const previousToast = document.getElementById(TOAST_ID);
-    if (previousToast) {
-      previousToast.remove();
-    }
-
-    const toast = document.createElement("div");
-    toast.id = TOAST_ID;
-    toast.textContent = message;
-    document.documentElement.appendChild(toast);
-
-    window.setTimeout(() => {
-      if (toast.parentNode) {
-        toast.remove();
-      }
-    }, 3500);
+    console.debug("Quiz helper:", message);
   }
 
   function clearPreviousMarkers() {
@@ -929,6 +878,5 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   addStyles();
-  addDebugButton();
   startAutoMode();
 })();
