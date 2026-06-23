@@ -5,8 +5,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const MARKER_CLASS = "page-notes-marker";
   const STYLE_ID = "page-notes-style";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
-  const VALID_ANSWERS = new Set(["A", "B", "C", "D", "E"]);
-  const OPTION_LETTERS = ["A", "B", "C", "D", "E"];
+  const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const VALID_ANSWERS = new Set(OPTION_LETTERS);
 
   let autoAskTimer = null;
   let isAutoAsking = false;
@@ -138,7 +138,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function getLetterFromPrefix(element) {
     const text = getVisibleText(element);
-    const match = text.match(/^\s*\(?\s*([A-E])\s*[\).:\-]?\s+/i);
+    const match = text.match(/^\s*\(?\s*([A-Z])\s*[\).:\-]?\s+/i);
     return match ? match[1].toUpperCase() : "";
   }
 
@@ -344,7 +344,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (!row.letter) {
         const groupKey = row.groupKey || "default";
         const letterIndex = syntheticLetterIndexes.get(groupKey) || 0;
-        row.letter = OPTION_LETTERS[letterIndex] || "E";
+        row.letter = OPTION_LETTERS[letterIndex] || OPTION_LETTERS[OPTION_LETTERS.length - 1];
         syntheticLetterIndexes.set(groupKey, letterIndex + 1);
       }
 
@@ -360,7 +360,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const groups = [];
     let currentGroup = {};
     let previousLetterIndex = -1;
-    const letters = ["A", "B", "C", "D", "E"];
+    const letters = OPTION_LETTERS;
 
     rows.forEach((row) => {
       const letterIndex = letters.indexOf(row.letter);

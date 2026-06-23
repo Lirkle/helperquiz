@@ -35,14 +35,14 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 Опционально можно задать модели:
 
 ```text
-OPENAI_MODEL=gpt-5.4-mini
+OPENAI_MODEL=gpt-5.4
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 Если `OPENAI_MODEL` не задан, сервер использует:
 
 ```text
-gpt-5.4-mini
+gpt-5.4
 ```
 
 `PORT` добавлять не нужно. Railway сам задаёт `PORT`, а сервер использует:
@@ -71,7 +71,7 @@ process.env.PORT || 3000
     }
   ],
   "provider": "openai",
-  "model": "gpt-5.4-mini"
+  "model": "gpt-5.4"
 }
 ```
 
@@ -90,7 +90,7 @@ Windows PowerShell:
 ```powershell
 $env:OPENAI_API_KEY="your_openai_api_key_here"
 $env:DEEPSEEK_API_KEY="your_deepseek_api_key_here"
-$env:OPENAI_MODEL="gpt-5.4-mini"
+$env:OPENAI_MODEL="gpt-5.4"
 $env:DEEPSEEK_MODEL="deepseek-v4-flash"
 npm start
 ```
@@ -100,7 +100,7 @@ macOS или Linux:
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 export DEEPSEEK_API_KEY="your_deepseek_api_key_here"
-export OPENAI_MODEL="gpt-5.4-mini"
+export OPENAI_MODEL="gpt-5.4"
 export DEEPSEEK_MODEL="deepseek-v4-flash"
 npm start
 ```
@@ -187,7 +187,7 @@ npm start
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
-OPENAI_MODEL=gpt-5.4-mini
+OPENAI_MODEL=gpt-5.4
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
@@ -237,7 +237,7 @@ online
     }
   ],
   "provider": "openai",
-  "model": "gpt-5.4-mini"
+  "model": "gpt-5.4"
 }
 ```
 
