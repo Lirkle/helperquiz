@@ -65,26 +65,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       }
 
       .${MARKER_CLASS} {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 18px;
-        height: 18px;
-        margin-left: 8px;
-        border-radius: 50%;
-        background: #16a34a;
-        color: #ffffff;
-        font-family: Arial, sans-serif;
-        font-size: 15px;
-        font-weight: 800;
-        line-height: 1;
-        vertical-align: middle;
-      }
-
-      .${HIGHLIGHT_CLASS} {
-        outline: 2px solid #16a34a !important;
-        outline-offset: 2px !important;
-        border-radius: 6px !important;
+        display: inline;
+        margin-left: 3px;
+        color: inherit;
+        font: inherit;
+        line-height: inherit;
       }
     `;
     document.documentElement.appendChild(style);
@@ -406,12 +391,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     const marker = document.createElement("span");
     marker.className = MARKER_CLASS;
-    marker.textContent = "+";
+    marker.textContent = "..";
     marker.title = `Предполагаемый ответ: ${letter}`;
 
     const markerTarget = findMarkerTarget(answerElement, letter);
     markerTarget.appendChild(marker);
-    answerElement.classList.add(HIGHLIGHT_CLASS);
     return true;
   }
 
