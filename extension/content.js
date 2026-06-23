@@ -6,6 +6,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const MARKER_CLASS = "quiz-helper-ai-plus-marker";
   const HIGHLIGHT_CLASS = "quiz-helper-ai-answer-highlight";
   const STYLE_ID = "quiz-helper-ai-style";
+  const OPTION_ID_ATTR = "data-quiz-helper-option-id";
   const VALID_ANSWERS = new Set(["A", "B", "C", "D", "E"]);
 
   function addStyles() {
@@ -145,7 +146,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return data.answers
         .map((item, index) => ({
           questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
-          answer: normalizeAnswer(item.answer || item.letter || item.correct)
+          answer: normalizeAnswer(item.answer || item.letter || item.correct),
+          optionId: normalizeOptionId(item.optionId || item.id)
         }))
         .filter((item) => item.answer !== "UNKNOWN" && Number.isFinite(item.questionNumber));
     }
@@ -155,7 +157,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return [];
     }
 
-    return [{ questionNumber: 1, answer }];
+    return [{ questionNumber: 1, answer, optionId: "" }];
+  }
+
+  function normalizeOptionId(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    return value.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
   }
 
   function getVisibleText(element) {
@@ -286,6 +296,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return 0;
     });
 
+    selected.forEach((row, index) => {
+      const optionId = row.element.getAttribute(OPTION_ID_ATTR) || `qh-opt-${index + 1}`;
+      row.element.setAttribute(OPTION_ID_ATTR, optionId);
+      row.optionId = optionId;
+    });
+
     return selected;
   }
 
@@ -317,7 +333,44 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return groups.filter((group) => Object.keys(group).length >= 2);
   }
 
+  function buildOptionPayload(rows, groups) {
+    const groupByElement = new Map();
+    groups.forEach((group, groupIndex) => {
+      Object.keys(group).forEach((letter) => {
+        groupByElement.set(group[letter], groupIndex + 1);
+      });
+    });
+
+    return rows.map((row) => ({
+      optionId: row.optionId,
+      groupNumber: groupByElement.get(row.element) || 0,
+      letter: row.letter,
+      text: cleanOptionText(getVisibleText(row.element), row.letter)
+    }));
+  }
+
+  function cleanOptionText(text, letter) {
+    return text
+      .replace(new RegExp(`^\\s*\\(?\\s*${letter}\\s*\\)?\\s*[:.\\-]?\\s*`, "i"), "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function findElementByOptionId(optionId) {
+    const safeOptionId = normalizeOptionId(optionId);
+    if (!safeOptionId) {
+      return null;
+    }
+
+    return document.querySelector(`[${OPTION_ID_ATTR}="${safeOptionId}"]`);
+  }
+
   function findAnswerElement(answer, answerIndex, groups) {
+    const optionElement = findElementByOptionId(answer.optionId);
+    if (optionElement) {
+      return optionElement;
+    }
+
     const directGroup = groups[answer.questionNumber - 1];
     if (directGroup && directGroup[answer.answer]) {
       return directGroup[answer.answer];
@@ -384,6 +437,16 @@ const SERVER_URL = "https://joker67.up.railway.app";
     };
   }
 
+  function buildAskPayload() {
+    const optionRows = collectOptionRows();
+    const groups = groupOptionRows(optionRows);
+
+    return {
+      text: document.body ? document.body.innerText : "",
+      options: buildOptionPayload(optionRows, groups)
+    };
+  }
+
   async function handleAskClick() {
     const button = document.getElementById(BUTTON_ID);
     if (!button) {
@@ -401,9 +464,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          text: document.body ? document.body.innerText : ""
-        })
+        body: JSON.stringify(buildAskPayload())
       });
 
       const data = await response.json().catch(() => ({}));

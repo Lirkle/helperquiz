@@ -12,7 +12,7 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 
 const SYSTEM_PROMPT =
-  "Ты помощник для учебной тренировки. Найди только реально присутствующие в тексте вопросы с вариантами A, B, C, D, E. Для каждого такого вопроса верни предполагаемую букву правильного варианта: A, B, C, D или E. Не выдумывай вопросы и номера. Если по конкретному вопросу не уверен, верни UNKNOWN. Верни только JSON без markdown в формате: {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\"},{\"questionNumber\":2,\"answer\":\"UNKNOWN\"}]}";
+  "Ты помощник для учебной тренировки. Тебе дадут текст страницы и, если удалось извлечь DOM-варианты, массив options с optionId, groupNumber, letter и text. Для каждого вопроса выбери правильный вариант только из переданных options. Верни только JSON без markdown в формате: {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\",\"optionId\":\"qh-opt-1\"}]}. Если options нет, верни questionNumber и answer. Не выдумывай вопросы, номера или optionId. Если не уверен, верни UNKNOWN.";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -111,6 +111,7 @@ function downloadExtension(req, res, next) {
 app.post("/ask", async (req, res, next) => {
   try {
     const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
+    const options = normalizeOptions(req.body.options);
 
     if (!text) {
       return res.status(400).json({
@@ -118,7 +119,7 @@ app.post("/ask", async (req, res, next) => {
       });
     }
 
-    const result = await askWithFallback(text);
+    const result = await askWithFallback(text, options);
 
     res.json({
       answer: result.answer,
@@ -145,7 +146,7 @@ app.use((error, req, res, next) => {
   });
 });
 
-async function askWithFallback(text) {
+async function askWithFallback(text, options) {
   const errors = [];
 
   if (process.env.OPENAI_API_KEY) {
@@ -154,7 +155,8 @@ async function askWithFallback(text) {
         provider: "openai",
         apiKey: process.env.OPENAI_API_KEY,
         model: OPENAI_MODEL,
-        text
+        text,
+        options
       });
     } catch (error) {
       errors.push(formatProviderError("openai", error));
@@ -171,7 +173,8 @@ async function askWithFallback(text) {
         apiKey: process.env.DEEPSEEK_API_KEY,
         baseURL: DEEPSEEK_BASE_URL,
         model: DEEPSEEK_MODEL,
-        text
+        text,
+        options
       });
     } catch (error) {
       errors.push(formatProviderError("deepseek", error));
@@ -186,7 +189,7 @@ async function askWithFallback(text) {
   throw error;
 }
 
-async function askProvider({ provider, apiKey, baseURL, model, text }) {
+async function askProvider({ provider, apiKey, baseURL, model, text, options }) {
   const client = new OpenAI({
     apiKey,
     baseURL
@@ -201,7 +204,7 @@ async function askProvider({ provider, apiKey, baseURL, model, text }) {
       },
       {
         role: "user",
-        content: text
+        content: buildUserPrompt(text, options)
       }
     ]
   });
@@ -241,7 +244,8 @@ function parseAnswers(value) {
 
             return {
               questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
-              answer: normalizeAnswer(item.answer || item.letter || item.correct)
+              answer: normalizeAnswer(item.answer || item.letter || item.correct),
+              optionId: normalizeOptionId(item.optionId || item.id)
             };
           })
           .filter((item) => item.answer !== "UNKNOWN" && Number.isFinite(item.questionNumber));
@@ -262,6 +266,38 @@ function parseAnswers(value) {
       answer: singleAnswer
     }
   ];
+}
+
+function normalizeOptions(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => ({
+      optionId: normalizeOptionId(item.optionId),
+      groupNumber: Number(item.groupNumber),
+      letter: normalizeAnswer(item.letter),
+      text: typeof item.text === "string" ? item.text.trim().slice(0, 500) : ""
+    }))
+    .filter((item) => item.optionId && item.letter !== "UNKNOWN" && item.text);
+}
+
+function normalizeOptionId(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+}
+
+function buildUserPrompt(text, options) {
+  const payload = {
+    pageText: text.slice(0, 60000),
+    options: options.slice(0, 250)
+  };
+
+  return JSON.stringify(payload);
 }
 
 function extractJsonText(value) {
