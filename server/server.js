@@ -8,7 +8,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4";
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 const PRIMARY_PROVIDER = normalizeProvider(process.env.PRIMARY_PROVIDER) || "openai";
 const AI_PROVIDER_TIMEOUT_MS = normalizePositiveInteger(process.env.AI_PROVIDER_TIMEOUT_MS, 3000);
@@ -256,6 +256,10 @@ async function askProvider({ provider, apiKey, baseURL, model, text, options }) 
   }
 
   if (!options.length) {
+    if (isUnknownOpenAnswer(rawAnswer)) {
+      throw new Error("Provider returned UNKNOWN for open question");
+    }
+
     return {
       answer: "UNKNOWN",
       answers: [],
