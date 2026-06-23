@@ -69,6 +69,31 @@ const SERVER_URL = "https://joker67.up.railway.app";
         user-select: text !important;
       }
 
+      #${DEBUG_BUTTON_ID} {
+        position: fixed;
+        right: 14px;
+        bottom: 58px;
+        z-index: 2147483647;
+        box-sizing: border-box;
+        min-width: 64px;
+        min-height: 32px;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 10px;
+        background: #0f172a;
+        color: #ffffff;
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+        user-select: none !important;
+      }
+
+      #${DEBUG_BUTTON_ID}:hover {
+        background: #1e293b;
+      }
+
     `;
     document.documentElement.appendChild(style);
   }
@@ -112,6 +137,72 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function hideAnswerHint() {
     document.getElementById(ANSWER_HINT_ID)?.remove();
+  }
+
+  function copyTextFallback(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.documentElement.appendChild(textarea);
+    textarea.select();
+
+    try {
+      return document.execCommand("copy");
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  async function copyDebugReport() {
+    const selectionText = getSelectionText();
+    const optionPayload = selectionText ? buildOptionOnlyPayload(selectionText) : { rows: [], options: [] };
+    const payload = {
+      text: selectionText,
+      options: optionPayload.options
+    };
+    const report = {
+      createdAt: new Date().toISOString(),
+      url: location.href,
+      title: document.title,
+      selectionText,
+      lastDebug,
+      currentSignature: getAutoAskSignature(payload),
+      currentPayload: payload,
+      markerCount: markerTextEdits.length,
+      cacheSize: answerCache.size,
+      bankEntryCount: getQuizBankEntries().length,
+      lastCompletedDebug
+    };
+    const text = JSON.stringify(report, null, 2);
+
+    try {
+      await navigator.clipboard.writeText(text);
+      console.debug("Quiz helper debug copied");
+    } catch (error) {
+      if (copyTextFallback(text)) {
+        console.debug("Quiz helper debug copied");
+        return;
+      }
+
+      console.log("Quiz helper debug report:", report);
+    }
+  }
+
+  function addDebugButton() {
+    if (document.getElementById(DEBUG_BUTTON_ID)) {
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.id = DEBUG_BUTTON_ID;
+    button.type = "button";
+    button.textContent = "Debug";
+    button.title = "Copy quiz helper debug report";
+    button.addEventListener("click", copyDebugReport);
+    document.documentElement.appendChild(button);
   }
 
   function clearPreviousMarkers() {
@@ -1127,5 +1218,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   addStyles();
   enableTextSelection();
+  addDebugButton();
   startSelectionMode();
 })();
