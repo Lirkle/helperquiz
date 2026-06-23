@@ -241,6 +241,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return parts.join(" - ");
   }
 
+  function formatAnswerHints(answers) {
+    return answers
+      .map(formatAnswerHint)
+      .filter(Boolean)
+      .join(", ");
+  }
+
   function hideAnswerHint() {
     const hint = document.getElementById(ANSWER_HINT_ID);
     if (hint) {
@@ -1479,14 +1486,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (bankAnswers.length) {
       answerCache.set(signature, bankAnswers);
       const markedCount = addMarkers(bankAnswers, getMarkerRows(optionPayload.rows));
+      const bankHint = formatAnswerHints(bankAnswers);
+      showAnswerHint(bankHint);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-bank";
       lastDebug.answers = bankAnswers;
+      lastDebug.answerHint = bankHint;
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
-        const bankHint = formatAnswerHint(bankAnswers[0]);
-        showAnswerHint(bankHint);
-        lastDebug.answerHint = bankHint;
         lastDebug.status = "used-bank-hint";
         setStatus("bank hint", 4500);
       } else {
@@ -1511,12 +1518,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
       }
 
       const markedCount = addMarkers(cachedAnswers, getMarkerRows(optionPayload.rows));
+      const cacheHint = formatAnswerHints(cachedAnswers);
+      showAnswerHint(cacheHint);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-cache";
       lastDebug.answers = cachedAnswers;
+      lastDebug.answerHint = cacheHint;
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
-        showAnswerHint(cachedAnswers[0]?.answerText || "");
         lastDebug.status = "used-cache-hint";
         setStatus("cache hint", 4500);
       } else {
@@ -1596,10 +1605,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (answers.length) {
         answerCache.set(signature, answers);
         const markedCount = addMarkers(answers, getMarkerRows(optionPayload.rows));
+        const answerHint = formatAnswerHints(answers);
+        showAnswerHint(answerHint);
         lastDebug.status = "marked";
+        lastDebug.answerHint = answerHint;
         lastDebug.markedCount = markedCount;
         if (!markedCount) {
-          showAnswerHint(answers[0]?.answerText || answers[0]?.answer || "");
           lastDebug.status = "ai-hint";
         }
         setStatus(markedCount ? "AI done" : "AI hint", 4500);
