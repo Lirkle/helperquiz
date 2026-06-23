@@ -3,7 +3,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
 (function () {
   const TOAST_ID = "page-notes-toast";
   const PANEL_ID = "page-notes-panel";
-  const DEBUG_BUTTON_ID = "page-notes-debug";
   const ANSWER_HINT_ID = "page-notes-answer-hint";
   const STATUS_ID = "page-notes-status";
   const MARKER_CLASS = "page-notes-marker";
@@ -30,7 +29,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
   function addStyles() {
     document.getElementById(TOAST_ID)?.remove();
     document.getElementById(PANEL_ID)?.remove();
-    document.getElementById(DEBUG_BUTTON_ID)?.remove();
     document.getElementById(ANSWER_HINT_ID)?.remove();
     document.getElementById(STATUS_ID)?.remove();
 
@@ -61,9 +59,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
         bottom: 14px;
         z-index: 2147483647;
         box-sizing: border-box;
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 6px 8px;
+        display: none;
+        grid-template-columns: 1fr;
+        gap: 6px;
         align-items: center;
         min-width: 150px;
         max-width: min(360px, calc(100vw - 28px));
@@ -99,23 +97,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       #${ANSWER_HINT_ID}:not(:empty) {
         display: block;
-      }
-
-      #${DEBUG_BUTTON_ID} {
-        border: 0;
-        border-radius: 6px;
-        padding: 5px 7px;
-        background: rgba(30, 41, 59, 0.96);
-        color: #ffffff;
-        font-family: Arial, sans-serif;
-        font-size: 11px;
-        font-weight: 700;
-        cursor: pointer;
-        user-select: none !important;
-      }
-
-      #${DEBUG_BUTTON_ID}:hover {
-        background: #1e293b;
       }
 
     `;
@@ -170,29 +151,28 @@ const SERVER_URL = "https://joker67.up.railway.app";
       panel.appendChild(status);
     }
 
-    let button = document.getElementById(DEBUG_BUTTON_ID);
-    if (!button) {
-      button = document.createElement("button");
-      button.id = DEBUG_BUTTON_ID;
-      button.type = "button";
-      button.textContent = "Debug";
-      button.title = "Copy quiz helper debug report";
-      button.addEventListener("click", copyDebugReport);
-      panel.appendChild(button);
-    } else if (button.parentElement !== panel) {
-      panel.appendChild(button);
-    }
-
     if (hint !== panel.firstElementChild) {
       panel.insertBefore(hint, panel.firstElementChild);
     }
 
+    updatePanelVisibility();
+
     return {
       panel,
       status,
-      button,
       hint
     };
+  }
+
+  function updatePanelVisibility() {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) {
+      return;
+    }
+
+    const hasStatus = Boolean(document.getElementById(STATUS_ID)?.textContent.trim());
+    const hasHint = Boolean(document.getElementById(ANSWER_HINT_ID)?.textContent.trim());
+    panel.style.display = hasStatus || hasHint ? "grid" : "none";
   }
 
   function setStatus(message, persistMs = 3500) {
@@ -206,11 +186,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (status) {
         status.textContent = "";
       }
+      updatePanelVisibility();
       return;
     }
 
     const { status } = ensurePanel();
     status.textContent = message;
+    updatePanelVisibility();
 
     if (persistMs > 0) {
       statusTimer = window.setTimeout(() => {
@@ -218,6 +200,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         if (currentStatus) {
           currentStatus.textContent = "";
         }
+        updatePanelVisibility();
         statusTimer = null;
       }, persistMs);
     }
@@ -230,6 +213,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     const { hint } = ensurePanel();
     hint.textContent = answerText;
+    updatePanelVisibility();
   }
 
   function getMarkerRows(rows) {
@@ -253,6 +237,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (hint) {
       hint.textContent = "";
     }
+    updatePanelVisibility();
   }
 
   function copyTextFallback(text) {
@@ -307,10 +292,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       console.log("Quiz helper debug report:", report);
     }
-  }
-
-  function addDebugButton() {
-    ensurePanel();
   }
 
   function clearPreviousMarkers() {
@@ -563,10 +544,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return Boolean(
       element.id === TOAST_ID ||
       element.id === PANEL_ID ||
-      element.id === DEBUG_BUTTON_ID ||
       element.id === ANSWER_HINT_ID ||
       element.id === STATUS_ID ||
-      element.closest(`#${TOAST_ID}, #${PANEL_ID}, #${DEBUG_BUTTON_ID}, #${ANSWER_HINT_ID}, #${STATUS_ID}`)
+      element.closest(`#${TOAST_ID}, #${PANEL_ID}, #${ANSWER_HINT_ID}, #${STATUS_ID}`)
     );
   }
 
@@ -1668,6 +1648,5 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   addStyles();
   enableTextSelection();
-  addDebugButton();
   startSelectionMode();
 })();
