@@ -1497,14 +1497,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
-    if (payload.options.length >= 2 && document.getElementById(ANSWER_HINT_ID)) {
-      lastAutoAskSignature = signature;
-      lastDebug.status = "used-bank-hint";
-      setStatus("bank hint", 4500);
-      lastCompletedDebug = { ...lastDebug };
-      return;
-    }
-
     if (answerCache.has(signature)) {
       const cachedAnswers = answerCache.get(signature);
       if (cachedAnswers.textAnswer) {
