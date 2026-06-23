@@ -1024,7 +1024,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (firstNumberIndex >= 0) {
       const numberedOptions = [];
       for (let index = firstNumberIndex; index < lines.length - 1; index += 2) {
-        if (!/^\d+$/.test(lines[index])) {
+        const expectedNumber = String(numberedOptions.length + 1);
+        if (lines[index] !== expectedNumber) {
           break;
         }
 
@@ -1106,9 +1107,18 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
 
     if (options.length < 2 && lines.length >= 3) {
-      const optionLines = lines.slice(1).filter((line) => !isLikelyQuizUiControl(line));
+      const firstPlainOptionIndex = lines.findIndex((line, index) =>
+        index > 0 &&
+        !/[?]$/.test(lines[index - 1]) &&
+        (
+          /^-?\d+(?:[.,]\d+)?$/.test(line) ||
+          (index >= lines.length - 4 && line.length <= 80)
+        )
+      );
+      const optionStartIndex = firstPlainOptionIndex === -1 ? 1 : firstPlainOptionIndex;
+      const optionLines = lines.slice(optionStartIndex).filter((line) => !isLikelyQuizUiControl(line));
       return {
-        questionText: lines[0],
+        questionText: lines.slice(0, optionStartIndex).join(" "),
         options: optionLines.slice(0, OPTION_LETTERS.length).map((line, index) => ({
           letter: OPTION_LETTERS[index],
           text: cleanOptionText(line, OPTION_LETTERS[index])
