@@ -74,6 +74,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         font-size: 12px;
         line-height: 1.25;
         box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+        opacity: 0.5;
         user-select: none !important;
       }
 
