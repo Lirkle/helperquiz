@@ -183,68 +183,40 @@ const SERVER_URL = "https://joker67.up.railway.app";
     );
   }
 
-  function findQuestionBlock(questionNumber) {
-    const number = Number(questionNumber);
-    if (!Number.isFinite(number)) {
-      return null;
-    }
-
-    const questionPattern = new RegExp(`^\\s*${number}\\s*[\\).]`);
-    const candidates = Array.from(
-      document.body.querySelectorAll("section, article, form, fieldset, li, div")
-    ).filter((element) => {
-      if (isOwnUi(element)) {
-        return false;
-      }
-
-      const text = getVisibleText(element);
-      return text.length >= 20 && text.length <= 6000 && questionPattern.test(text);
-    });
-
-    candidates.sort((a, b) => {
-      const lengthDifference = getVisibleText(a).length - getVisibleText(b).length;
-      if (lengthDifference !== 0) {
-        return lengthDifference;
-      }
-
-      return a.querySelectorAll("*").length - b.querySelectorAll("*").length;
-    });
-
-    return candidates[0] || null;
-  }
-
-  function hasLetterBadge(element, letter) {
-    return Array.from(element.querySelectorAll("*")).some((child) => {
-      const childText = getVisibleText(child);
-      return childText === letter && !child.querySelector("input, textarea, select, button");
-    });
-  }
-
-  function hasLetterPrefix(element, letter) {
+  function getLetterFromPrefix(element) {
     const text = getVisibleText(element);
-    const escapedLetter = letter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const patterns = [
-      new RegExp(`^\\s*${escapedLetter}\\s*[\\).:\\-]\\s+`, "i"),
-      new RegExp(`^\\s*\\(?\\s*${escapedLetter}\\s*\\)\\s+`, "i")
-    ];
-
-    return patterns.some((pattern) => pattern.test(text));
+    const match = text.match(/^\s*\(?\s*([A-E])\s*[\).:\-]?\s+/i);
+    return match ? match[1].toUpperCase() : "";
   }
 
-  function isLikelyOptionRow(element, letter) {
+  function getLetterFromBadge(element) {
+    const letters = Array.from(element.querySelectorAll("*"))
+      .map((child) => getVisibleText(child))
+      .filter((text) => VALID_ANSWERS.has(text));
+
+    const uniqueLetters = Array.from(new Set(letters));
+    return uniqueLetters.length === 1 ? uniqueLetters[0] : "";
+  }
+
+  function getOptionLetter(element) {
+    return getLetterFromPrefix(element) || getLetterFromBadge(element);
+  }
+
+  function isLikelyOptionRow(element) {
     const text = getVisibleText(element);
     if (!text || text.length < 2 || text.length > 900) {
       return false;
     }
 
-    if (text === letter) {
+    const letter = getOptionLetter(element);
+    if (!letter || text === letter) {
       return false;
     }
 
-    return hasLetterPrefix(element, letter) || hasLetterBadge(element, letter);
+    return true;
   }
 
-  function scoreOptionRow(element, letter) {
+  function scoreOptionRow(element) {
     const text = getVisibleText(element);
     let score = 0;
 
@@ -252,11 +224,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       score += 8;
     }
 
-    if (hasLetterBadge(element, letter)) {
+    if (getLetterFromBadge(element)) {
       score += 6;
     }
 
-    if (hasLetterPrefix(element, letter)) {
+    if (getLetterFromPrefix(element)) {
       score += 5;
     }
 
@@ -272,14 +244,94 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return score;
   }
 
-  function findAnswerElement(letter, root) {
+  function collectOptionRows(root = document.body) {
     const searchRoot = root || document.body;
-    const candidates = Array.from(
-      searchRoot.querySelectorAll("label, li, button, p, div, span")
-    ).filter((element) => !isOwnUi(element) && isLikelyOptionRow(element, letter));
+    const rawCandidates = Array.from(
+      searchRoot.querySelectorAll("label, li, button, [role='radio'], [role='option'], div, p")
+    )
+      .filter((element) => !isOwnUi(element) && isLikelyOptionRow(element))
+      .map((element) => ({
+        element,
+        letter: getOptionLetter(element),
+        score: scoreOptionRow(element)
+      }));
 
-    candidates.sort((a, b) => scoreOptionRow(b, letter) - scoreOptionRow(a, letter));
-    return candidates[0] || null;
+    rawCandidates.sort((a, b) => b.score - a.score);
+
+    const selected = [];
+    rawCandidates.forEach((candidate) => {
+      const overlaps = selected.some((existing) => {
+        return (
+          existing.element === candidate.element ||
+          existing.element.contains(candidate.element) ||
+          candidate.element.contains(existing.element)
+        );
+      });
+
+      if (!overlaps) {
+        selected.push(candidate);
+      }
+    });
+
+    selected.sort((a, b) => {
+      const position = a.element.compareDocumentPosition(b.element);
+      if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+        return -1;
+      }
+
+      if (position & Node.DOCUMENT_POSITION_PRECEDING) {
+        return 1;
+      }
+
+      return 0;
+    });
+
+    return selected;
+  }
+
+  function groupOptionRows(rows) {
+    const groups = [];
+    let currentGroup = {};
+    let previousLetterIndex = -1;
+
+    rows.forEach((row) => {
+      const letterIndex = ["A", "B", "C", "D", "E"].indexOf(row.letter);
+      const shouldStartNewGroup =
+        row.letter === "A" ||
+        currentGroup[row.letter] ||
+        letterIndex <= previousLetterIndex;
+
+      if (shouldStartNewGroup && Object.keys(currentGroup).length > 0) {
+        groups.push(currentGroup);
+        currentGroup = {};
+      }
+
+      currentGroup[row.letter] = row.element;
+      previousLetterIndex = letterIndex;
+    });
+
+    if (Object.keys(currentGroup).length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups.filter((group) => Object.keys(group).length >= 2);
+  }
+
+  function findAnswerElement(answer, answerIndex, groups) {
+    const directGroup = groups[answer.questionNumber - 1];
+    if (directGroup && directGroup[answer.answer]) {
+      return directGroup[answer.answer];
+    }
+
+    if (groups.length === 1 && groups[0][answer.answer]) {
+      return groups[0][answer.answer];
+    }
+
+    if (groups.length > answerIndex && groups[answerIndex][answer.answer]) {
+      return groups[answerIndex][answer.answer];
+    }
+
+    return null;
   }
 
   function findMarkerTarget(answerElement, letter) {
@@ -294,8 +346,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return textTargets[0] || answerElement;
   }
 
-  function addPlusMarker(letter, root) {
-    const answerElement = findAnswerElement(letter, root);
+  function addPlusMarker(answerElement, letter) {
     if (!answerElement) {
       return false;
     }
@@ -314,21 +365,23 @@ const SERVER_URL = "https://joker67.up.railway.app";
   function addPlusMarkers(answers) {
     clearPreviousMarkers();
 
+    const optionRows = collectOptionRows();
+    const groups = groupOptionRows(optionRows);
     let markedCount = 0;
 
-    answers.forEach((item) => {
-      const questionBlock = findQuestionBlock(item.questionNumber);
-      if (!questionBlock && answers.length > 1) {
-        return;
-      }
-
-      const markerAdded = addPlusMarker(item.answer, questionBlock || document.body);
+    answers.forEach((item, index) => {
+      const answerElement = findAnswerElement(item, index, groups);
+      const markerAdded = addPlusMarker(answerElement, item.answer);
       if (markerAdded) {
         markedCount += 1;
       }
     });
 
-    return markedCount;
+    return {
+      markedCount,
+      optionRowCount: optionRows.length,
+      groupCount: groups.length
+    };
   }
 
   async function handleAskClick() {
@@ -366,11 +419,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
         return;
       }
 
-      const markedCount = addPlusMarkers(answers);
-      if (markedCount > 0) {
-        showToast(`Плюсиков поставлено: ${markedCount}`, false);
+      const result = addPlusMarkers(answers);
+      if (result.markedCount > 0) {
+        showToast(`Плюсиков поставлено: ${result.markedCount}`, false);
       } else {
-        showToast("Ответы получены, но варианты на странице не найдены.", false);
+        showToast(`Не нашёл строки вариантов. Найдено строк: ${result.optionRowCount}, групп: ${result.groupCount}.`, false);
       }
     } catch (error) {
       showToast(`Ошибка: ${error.message}`, true);
