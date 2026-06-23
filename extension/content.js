@@ -4,6 +4,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const TOAST_ID = "page-notes-toast";
   const DEBUG_BUTTON_ID = "page-notes-debug";
   const ANSWER_HINT_ID = "page-notes-answer-hint";
+  const STATUS_ID = "page-notes-status";
   const MARKER_CLASS = "page-notes-marker";
   const STYLE_ID = "page-notes-style";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
@@ -23,6 +24,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   };
   let lastCompletedDebug = null;
   let quizBankEntries = null;
+  let statusTimer = null;
 
   function addStyles() {
     document.getElementById(TOAST_ID)?.remove();
@@ -94,6 +96,26 @@ const SERVER_URL = "https://joker67.up.railway.app";
         background: #1e293b;
       }
 
+      #${STATUS_ID} {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        z-index: 2147483647;
+        box-sizing: border-box;
+        max-width: min(300px, calc(100vw - 28px));
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        border-radius: 8px;
+        padding: 7px 9px;
+        background: rgba(15, 23, 42, 0.94);
+        color: #f8fafc;
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.25;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+        user-select: none !important;
+      }
+
     `;
     document.documentElement.appendChild(style);
   }
@@ -118,6 +140,34 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function showToast(message) {
     console.debug("Quiz helper:", message);
+  }
+
+  function setStatus(message, persistMs = 3500) {
+    if (statusTimer) {
+      window.clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+
+    if (!message) {
+      document.getElementById(STATUS_ID)?.remove();
+      return;
+    }
+
+    let status = document.getElementById(STATUS_ID);
+    if (!status) {
+      status = document.createElement("div");
+      status.id = STATUS_ID;
+      document.documentElement.appendChild(status);
+    }
+
+    status.textContent = message;
+
+    if (persistMs > 0) {
+      statusTimer = window.setTimeout(() => {
+        document.getElementById(STATUS_ID)?.remove();
+        statusTimer = null;
+      }, persistMs);
+    }
   }
 
   function showAnswerHint(answerText) {
@@ -418,7 +468,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       element.id === TOAST_ID ||
       element.id === DEBUG_BUTTON_ID ||
       element.id === ANSWER_HINT_ID ||
-      element.closest(`#${TOAST_ID}, #${DEBUG_BUTTON_ID}, #${ANSWER_HINT_ID}`)
+      element.id === STATUS_ID ||
+      element.closest(`#${TOAST_ID}, #${DEBUG_BUTTON_ID}, #${ANSWER_HINT_ID}, #${STATUS_ID}`)
     );
   }
 
@@ -1211,6 +1262,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       window.clearTimeout(autoAskTimer);
     }
 
+    setStatus("selected...", 1200);
     autoAskTimer = window.setTimeout(() => {
       autoAskTimer = null;
       runAutoAsk(getSelectionText(), getRawSelectionText());
@@ -1220,11 +1272,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
   async function runAutoAsk(selectionText = "", rawSelectionText = "") {
     if (isAutoAsking) {
       addDebugEvent("skip", { reason: "already-running" });
+      setStatus("AI still thinking...", 1500);
       return;
     }
 
     if (!selectionText || selectionText.length < 3) {
       hideAnswerHint();
+      setStatus("", 0);
       lastDebug = {
         status: "no-selection",
         at: new Date().toISOString(),
@@ -1252,9 +1306,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       };
       if (bankEntry) {
         showAnswerHint(bankEntry.answerText);
+        setStatus("bank hint", 4500);
         addDebugEvent("bank-hint", { answer: bankEntry.answerText });
         lastCompletedDebug = { ...lastDebug };
       } else {
+        setStatus("no options found", 3500);
         addDebugEvent("skip", { reason: "not-enough-options", optionCount: payload.options.length });
       }
       return;
@@ -1271,6 +1327,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     if (signature === lastAutoAskSignature && payloadHasMarker(payload)) {
       lastDebug.status = "skipped-existing-marker";
+      setStatus("already marked", 2500);
       addDebugEvent("skip", { reason: "same-signature-with-marker", signature });
       return;
     }
@@ -1286,6 +1343,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (!markedCount) {
         showAnswerHint(bankAnswers[0].answerText || "");
         lastDebug.status = "used-bank-hint";
+        setStatus("bank hint", 4500);
+      } else {
+        setStatus("bank done", 3000);
       }
       addDebugEvent("bank-hit", { signature, markedCount, answers: bankAnswers });
       lastCompletedDebug = { ...lastDebug };
@@ -1295,6 +1355,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (document.getElementById(ANSWER_HINT_ID)) {
       lastAutoAskSignature = signature;
       lastDebug.status = "used-bank-hint";
+      setStatus("bank hint", 4500);
       lastCompletedDebug = { ...lastDebug };
       return;
     }
@@ -1309,6 +1370,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (!markedCount) {
         showAnswerHint(cachedAnswers[0]?.answerText || "");
         lastDebug.status = "used-cache-hint";
+        setStatus("cache hint", 4500);
+      } else {
+        setStatus("cache done", 3000);
       }
       addDebugEvent("cache-hit", { signature, markedCount, answers: cachedAnswers });
       lastCompletedDebug = { ...lastDebug };
@@ -1320,6 +1384,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     lastAutoAskSignature = signature;
     lastDebug.status = "requesting";
     lastDebug.payload = askPayload;
+    setStatus("AI thinking...", 0);
     addDebugEvent("request", { signature, optionCount: payload.options.length });
 
     const controller = new AbortController();
@@ -1357,6 +1422,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (getAutoAskSignature(currentPayload) !== signature) {
         lastDebug.status = "stale-response";
         lastDebug.currentPayload = currentPayload;
+        setStatus("selection changed", 2500);
         addDebugEvent("stale-response", {
           requestSignature: signature,
           currentSignature: getAutoAskSignature(currentPayload)
@@ -1371,16 +1437,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
         const markedCount = addMarkers(answers, optionPayload.rows);
         lastDebug.status = "marked";
         lastDebug.markedCount = markedCount;
+        setStatus(markedCount ? "AI done" : "AI answered, no marker", 4500);
         addDebugEvent("marked", { signature, markedCount, answers });
         lastCompletedDebug = { ...lastDebug };
       } else {
         lastDebug.status = "no-answers";
+        setStatus("AI no answer", 4500);
         addDebugEvent("no-answers", { signature, data });
         lastCompletedDebug = { ...lastDebug };
       }
     } catch (error) {
       lastDebug.status = "error";
       lastDebug.error = error.name === "AbortError" ? "Request timeout" : error.message;
+      setStatus(lastDebug.error, 5000);
       addDebugEvent("error", { message: lastDebug.error });
       showToast(`Error: ${lastDebug.error}`);
     } finally {
