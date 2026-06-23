@@ -301,8 +301,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function scoreBankEntry(entry, payloadOptions, payloadText) {
-    const currentOptionTexts = new Set(payloadOptions.map((option) => normalizeBankText(option.text)));
+    const currentOptionTexts = new Set(
+      payloadOptions
+        .map((option) => normalizeBankText(option.text))
+        .filter(isMeaningfulOptionText)
+    );
     const matchedOptions = entry.options.filter((option) =>
+      isMeaningfulOptionText(option.normalizedText) &&
       currentOptionTexts.has(option.normalizedText)
     ).length;
     const questionMatched = normalizeBankText(payloadText).includes(entry.normalizedQuestion);
@@ -313,6 +318,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       questionMatched,
       score
     };
+  }
+
+  function isMeaningfulOptionText(text) {
+    const normalized = normalizeBankText(text);
+    return normalized.length > 1 && !/^\d+$/.test(normalized) && !/^-+$/.test(normalized);
   }
 
   function findBankEntryByQuestion(questionText) {
@@ -866,8 +876,47 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const questionLines = [];
     let implicitOptionMode = false;
 
+    const firstNumberIndex = lines.findIndex((line) => /^\d+$/.test(line));
+    if (firstNumberIndex >= 0) {
+      const numberedOptions = [];
+      for (let index = firstNumberIndex; index < lines.length - 1; index += 2) {
+        if (!/^\d+$/.test(lines[index])) {
+          break;
+        }
+
+        numberedOptions.push({
+          letter: OPTION_LETTERS[numberedOptions.length],
+          text: lines[index + 1]
+        });
+      }
+
+      if (numberedOptions.length >= 2) {
+        return {
+          questionText: lines.slice(0, firstNumberIndex).join(" "),
+          options: numberedOptions.map((option) => ({
+            ...option,
+            text: cleanOptionText(option.text, option.letter)
+          }))
+        };
+      }
+    }
+
     if (lines.length === 1) {
       const line = lines[0];
+      const inlineNumberOptionPattern = /(?:^|\s)(\d+)\s+([\s\S]*?)(?=\s+\d+\s+|$)/g;
+      const inlineNumberMatches = Array.from(line.matchAll(inlineNumberOptionPattern));
+
+      if (inlineNumberMatches.length >= 2) {
+        const firstOptionIndex = inlineNumberMatches[0].index || 0;
+        return {
+          questionText: line.slice(0, firstOptionIndex).trim(),
+          options: inlineNumberMatches.map((match, index) => ({
+            letter: OPTION_LETTERS[index],
+            text: cleanOptionText(match[2], OPTION_LETTERS[index])
+          }))
+        };
+      }
+
       const inlineOptionPattern = /(?:^|\s)([A-E])(?:[\).:\-]|\s)\s+([\s\S]*?)(?=\s+[A-E](?:[\).:\-]|\s)\s+|$)/g;
       const inlineMatches = Array.from(line.matchAll(inlineOptionPattern));
 
