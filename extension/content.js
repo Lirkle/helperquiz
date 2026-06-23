@@ -158,7 +158,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   async function copyDebugReport() {
     const selectionText = getSelectionText();
-    const optionPayload = selectionText ? buildOptionOnlyPayload(selectionText) : { rows: [], options: [] };
+    const rawSelectionText = getRawSelectionText();
+    const optionPayload = selectionText ? buildOptionOnlyPayload(selectionText, rawSelectionText) : { rows: [], options: [] };
     const payload = {
       text: selectionText,
       options: optionPayload.options
@@ -168,6 +169,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       url: location.href,
       title: document.title,
       selectionText,
+      rawSelectionText,
       lastDebug,
       currentSignature: getAutoAskSignature(payload),
       currentPayload: payload,
@@ -373,7 +375,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       {
         questionNumber: Number(matchedOption.groupNumber) || 1,
         answer: matchedOption.letter,
-        optionId: matchedOption.optionId
+        optionId: matchedOption.optionId,
+        answerText: bestEntry.answerText
       }
     ];
   }
@@ -810,9 +813,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function getSelectionText() {
-    return stripMarkerSuffixes(window.getSelection()?.toString() || "")
+    return getRawSelectionText()
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function getRawSelectionText() {
+    return stripMarkerSuffixes(window.getSelection()?.toString() || "").trim();
   }
 
   function getSelectionElement() {
@@ -838,6 +845,115 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     return selectActiveRows(collectOptionRows());
+  }
+
+  function parseSelectedQuestionAndOptions(selectionText) {
+    const rawLines = String(selectionText || "")
+      .split(/\r?\n/)
+      .map((line) => stripMarkerSuffixes(line).trim())
+      .filter(Boolean);
+    const lines = [];
+    for (let index = 0; index < rawLines.length; index += 1) {
+      if (/^[A-E]$/i.test(rawLines[index]) && rawLines[index + 1]) {
+        lines.push(`${rawLines[index]}) ${rawLines[index + 1]}`);
+        index += 1;
+      } else {
+        lines.push(rawLines[index]);
+      }
+    }
+    const options = [];
+    const questionLines = [];
+    let implicitOptionMode = false;
+
+    if (lines.length === 1) {
+      const line = lines[0];
+      const inlineOptionPattern = /(?:^|\s)([A-E])[\).:\-]\s+([\s\S]*?)(?=\s+[A-E][\).:\-]\s+|$)/gi;
+      const inlineMatches = Array.from(line.matchAll(inlineOptionPattern));
+
+      if (inlineMatches.length >= 2) {
+        const firstOptionIndex = inlineMatches[0].index || 0;
+        return {
+          questionText: line.slice(0, firstOptionIndex).trim(),
+          options: inlineMatches.map((match) => ({
+            letter: match[1].toUpperCase(),
+            text: cleanOptionText(match[2], match[1].toUpperCase())
+          }))
+        };
+      }
+    }
+
+    lines.forEach((line) => {
+      const explicitMatch = line.match(/^\s*(?:\(?\s*([A-E])\s*\)?\s*[\).:\-])\s+(.+)$/i);
+      if (explicitMatch) {
+        options.push({
+          letter: explicitMatch[1].toUpperCase(),
+          text: explicitMatch[2].trim()
+        });
+        implicitOptionMode = true;
+        return;
+      }
+
+      if (implicitOptionMode || (questionLines.length > 0 && options.length > 0)) {
+        const letter = OPTION_LETTERS[options.length];
+        if (letter) {
+          options.push({
+            letter,
+            text: line
+          });
+          return;
+        }
+      }
+
+      questionLines.push(line);
+    });
+
+    if (options.length < 2 && lines.length >= 3) {
+      const optionLines = lines.slice(1);
+      return {
+        questionText: lines[0],
+        options: optionLines.slice(0, OPTION_LETTERS.length).map((line, index) => ({
+          letter: OPTION_LETTERS[index],
+          text: cleanOptionText(line, OPTION_LETTERS[index])
+        }))
+      };
+    }
+
+    return {
+      questionText: questionLines.join(" "),
+      options: options.map((option) => ({
+        ...option,
+        text: cleanOptionText(option.text, option.letter)
+      }))
+    };
+  }
+
+  function matchSelectionOptionsToRows(selectionOptions, rows) {
+    if (!selectionOptions.length) {
+      return [];
+    }
+
+    const unusedRows = [...rows];
+    return selectionOptions.map((option, index) => {
+      const normalizedOptionText = normalizeBankText(option.text);
+      let matchedIndex = unusedRows.findIndex((row) =>
+        normalizeBankText(getVisibleText(row.element)).includes(normalizedOptionText)
+      );
+
+      if (matchedIndex === -1) {
+        matchedIndex = unusedRows.findIndex((row) => row.letter === option.letter);
+      }
+
+      const row = matchedIndex === -1 ? null : unusedRows.splice(matchedIndex, 1)[0];
+      const optionId = row?.optionId || `pn-selected-${index + 1}`;
+
+      return {
+        ...option,
+        optionId,
+        groupNumber: 1,
+        inputType: row?.inputType || "",
+        element: row?.element || null
+      };
+    });
   }
 
   function getFocusedQuizText(rows, options) {
@@ -873,18 +989,37 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return `Current quiz question and options:\n${questionText}\n\nDetected options:\n${optionLines}`;
   }
 
-  function buildOptionOnlyPayload(selectionText = "") {
+  function buildOptionOnlyPayload(selectionText = "", rawSelectionText = "") {
     const selectionElement = selectionText ? getSelectionElement() : null;
-    const rows = selectionElement
+    const nearbyRows = selectionElement
       ? findSelectionOptionRows(selectionElement)
       : selectActiveRows(collectOptionRows());
+    const selectedQuiz = parseSelectedQuestionAndOptions(rawSelectionText || selectionText);
+    const selectedOptions = selectedQuiz.options.length >= 2
+      ? matchSelectionOptionsToRows(selectedQuiz.options, nearbyRows)
+      : [];
+    const rows = selectedOptions.some((option) => option.element)
+      ? selectedOptions
+          .filter((option) => option.element)
+          .map((option) => ({
+            element: option.element,
+            letter: option.letter,
+            optionId: option.optionId,
+            inputType: option.inputType || ""
+          }))
+      : nearbyRows;
     const groups = groupOptionRows(rows);
-    const options = buildOptionPayload(rows, groups);
+    const options = selectedOptions.length >= 2
+      ? selectedOptions.map(({ element, ...option }) => option)
+      : buildOptionPayload(rows, groups);
+    const selectedQuestionText = selectedQuiz.questionText || selectionText;
 
     return {
       rows,
       options,
-      selectionText
+      selectionText: selectedQuestionText,
+      rawSelectionText,
+      selectionOptions: selectedOptions
     };
   }
 
@@ -1035,11 +1170,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     autoAskTimer = window.setTimeout(() => {
       autoAskTimer = null;
-      runAutoAsk(getSelectionText());
+      runAutoAsk(getSelectionText(), getRawSelectionText());
     }, delay);
   }
 
-  async function runAutoAsk(selectionText = "") {
+  async function runAutoAsk(selectionText = "", rawSelectionText = "") {
     if (isAutoAsking) {
       addDebugEvent("skip", { reason: "already-running" });
       return;
@@ -1057,7 +1192,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     hideAnswerHint();
-    const optionPayload = buildOptionOnlyPayload(selectionText);
+    const optionPayload = buildOptionOnlyPayload(selectionText, rawSelectionText);
     const payload = {
       text: selectionText,
       options: optionPayload.options
@@ -1105,6 +1240,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.status = "used-bank";
       lastDebug.answers = bankAnswers;
       lastDebug.markedCount = markedCount;
+      if (!markedCount) {
+        showAnswerHint(bankAnswers[0].answerText || "");
+        lastDebug.status = "used-bank-hint";
+      }
       addDebugEvent("bank-hit", { signature, markedCount, answers: bankAnswers });
       lastCompletedDebug = { ...lastDebug };
       return;
@@ -1124,6 +1263,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.status = "used-cache";
       lastDebug.answers = cachedAnswers;
       lastDebug.markedCount = markedCount;
+      if (!markedCount) {
+        showAnswerHint(cachedAnswers[0]?.answerText || "");
+        lastDebug.status = "used-cache-hint";
+      }
       addDebugEvent("cache-hit", { signature, markedCount, answers: cachedAnswers });
       lastCompletedDebug = { ...lastDebug };
       return;
@@ -1162,7 +1305,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       }
 
       const currentSelectionText = getSelectionText();
-      const currentOptionPayload = buildOptionOnlyPayload(currentSelectionText);
+      const currentRawSelectionText = getRawSelectionText();
+      const currentOptionPayload = buildOptionOnlyPayload(currentSelectionText, currentRawSelectionText);
       const currentPayload = {
         text: currentSelectionText,
         options: currentOptionPayload.options
