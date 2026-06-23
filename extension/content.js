@@ -1429,24 +1429,21 @@ const SERVER_URL = "https://joker67.up.railway.app";
     };
     if (payload.options.length < 2) {
       const bankEntry = findBankEntryByQuestion(selectionText);
-      lastDebug = {
-        status: bankEntry ? "used-bank-hint" : "no-options",
-        at: new Date().toISOString(),
-        optionCount: payload.options.length,
-        payload,
-        bankAnswer: bankEntry?.answerText,
-        events: lastDebug.events || []
-      };
       if (bankEntry) {
+        lastDebug = {
+          status: "used-bank-hint",
+          at: new Date().toISOString(),
+          optionCount: payload.options.length,
+          payload,
+          bankAnswer: bankEntry.answerText,
+          events: lastDebug.events || []
+        };
         showAnswerHint(bankEntry.answerText);
         setStatus("bank hint", 4500);
         addDebugEvent("bank-hint", { answer: bankEntry.answerText });
         lastCompletedDebug = { ...lastDebug };
-      } else {
-        setStatus("no options found", 3500);
-        addDebugEvent("skip", { reason: "not-enough-options", optionCount: payload.options.length });
+        return;
       }
-      return;
     }
 
     const signature = getAutoAskSignature(payload);
@@ -1465,7 +1462,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
-    const bankAnswers = findBankAnswers(payload);
+    const bankAnswers = payload.options.length >= 2 ? findBankAnswers(payload) : [];
     if (bankAnswers.length) {
       answerCache.set(signature, bankAnswers);
       const markedCount = addMarkers(bankAnswers, optionPayload.rows);
@@ -1485,7 +1482,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
-    if (document.getElementById(ANSWER_HINT_ID)) {
+    if (payload.options.length >= 2 && document.getElementById(ANSWER_HINT_ID)) {
       lastAutoAskSignature = signature;
       lastDebug.status = "used-bank-hint";
       setStatus("bank hint", 4500);
@@ -1495,6 +1492,17 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     if (answerCache.has(signature)) {
       const cachedAnswers = answerCache.get(signature);
+      if (cachedAnswers.textAnswer) {
+        showAnswerHint(cachedAnswers.textAnswer);
+        lastAutoAskSignature = signature;
+        lastDebug.status = "used-cache-hint";
+        lastDebug.textAnswer = cachedAnswers.textAnswer;
+        setStatus("cache hint", 4500);
+        addDebugEvent("cache-hit", { signature, textAnswer: cachedAnswers.textAnswer });
+        lastCompletedDebug = { ...lastDebug };
+        return;
+      }
+
       const markedCount = addMarkers(cachedAnswers, optionPayload.rows);
       lastAutoAskSignature = signature;
       lastDebug.status = "used-cache";
@@ -1512,7 +1520,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
-    const askPayload = buildAskPayload(optionPayload);
+    const askPayload = payload.options.length < 2
+      ? { text: selectionText, options: [] }
+      : buildAskPayload(optionPayload);
     isAutoAsking = true;
     lastAutoAskSignature = signature;
     lastDebug.status = "requesting";
@@ -1560,6 +1570,17 @@ const SERVER_URL = "https://joker67.up.railway.app";
           requestSignature: signature,
           currentSignature: getAutoAskSignature(currentPayload)
         });
+        return;
+      }
+
+      if (data.textAnswer) {
+        answerCache.set(signature, { textAnswer: data.textAnswer });
+        showAnswerHint(data.textAnswer);
+        lastDebug.status = "ai-hint";
+        lastDebug.textAnswer = data.textAnswer;
+        setStatus("AI hint", 4500);
+        addDebugEvent("open-answer", { signature, textAnswer: data.textAnswer });
+        lastCompletedDebug = { ...lastDebug };
         return;
       }
 
