@@ -2,6 +2,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
 (function () {
   const TOAST_ID = "page-notes-toast";
+  const PANEL_ID = "page-notes-panel";
   const DEBUG_BUTTON_ID = "page-notes-debug";
   const ANSWER_HINT_ID = "page-notes-answer-hint";
   const STATUS_ID = "page-notes-status";
@@ -28,7 +29,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function addStyles() {
     document.getElementById(TOAST_ID)?.remove();
+    document.getElementById(PANEL_ID)?.remove();
     document.getElementById(DEBUG_BUTTON_ID)?.remove();
+    document.getElementById(ANSWER_HINT_ID)?.remove();
+    document.getElementById(STATUS_ID)?.remove();
 
     if (document.getElementById(STYLE_ID)) {
       return;
@@ -51,69 +55,67 @@ const SERVER_URL = "https://joker67.up.railway.app";
         line-height: inherit;
       }
 
-      #${ANSWER_HINT_ID} {
+      #${PANEL_ID} {
         position: fixed;
         right: 14px;
         bottom: 14px;
         z-index: 2147483647;
         box-sizing: border-box;
-        max-width: min(420px, calc(100vw - 28px));
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 8px;
+        align-items: center;
+        min-width: 116px;
+        max-width: min(360px, calc(100vw - 28px));
         border: 1px solid rgba(148, 163, 184, 0.45);
         border-radius: 8px;
-        padding: 9px 11px;
-        background: rgba(15, 23, 42, 0.96);
+        padding: 7px;
+        background: rgba(15, 23, 42, 0.88);
         color: #f8fafc;
         font-family: Arial, sans-serif;
+        font-size: 12px;
+        line-height: 1.25;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+        user-select: none !important;
+      }
+
+      #${STATUS_ID} {
+        color: #cbd5e1;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #${ANSWER_HINT_ID} {
+        grid-column: 1 / -1;
+        display: none;
+        color: #ffffff;
         font-size: 13px;
         font-weight: 700;
-        line-height: 1.35;
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+        overflow-wrap: anywhere;
         user-select: text !important;
       }
 
+      #${ANSWER_HINT_ID}:not(:empty) {
+        display: block;
+      }
+
       #${DEBUG_BUTTON_ID} {
-        position: fixed;
-        right: 14px;
-        bottom: 58px;
-        z-index: 2147483647;
-        box-sizing: border-box;
-        min-width: 64px;
-        min-height: 32px;
         border: 0;
-        border-radius: 8px;
-        padding: 0 10px;
-        background: #0f172a;
+        border-radius: 6px;
+        padding: 5px 7px;
+        background: rgba(30, 41, 59, 0.96);
         color: #ffffff;
         font-family: Arial, sans-serif;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         cursor: pointer;
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
         user-select: none !important;
       }
 
       #${DEBUG_BUTTON_ID}:hover {
         background: #1e293b;
-      }
-
-      #${STATUS_ID} {
-        position: fixed;
-        left: 14px;
-        bottom: 14px;
-        z-index: 2147483647;
-        box-sizing: border-box;
-        max-width: min(300px, calc(100vw - 28px));
-        border: 1px solid rgba(148, 163, 184, 0.45);
-        border-radius: 8px;
-        padding: 7px 9px;
-        background: rgba(15, 23, 42, 0.94);
-        color: #f8fafc;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        font-weight: 700;
-        line-height: 1.25;
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-        user-select: none !important;
       }
 
     `;
@@ -142,6 +144,53 @@ const SERVER_URL = "https://joker67.up.railway.app";
     console.debug("Quiz helper:", message);
   }
 
+  function ensurePanel() {
+    let panel = document.getElementById(PANEL_ID);
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = PANEL_ID;
+      document.documentElement.appendChild(panel);
+    }
+
+    let status = document.getElementById(STATUS_ID);
+    if (!status) {
+      status = document.createElement("div");
+      status.id = STATUS_ID;
+      panel.appendChild(status);
+    } else if (status.parentElement !== panel) {
+      panel.appendChild(status);
+    }
+
+    let button = document.getElementById(DEBUG_BUTTON_ID);
+    if (!button) {
+      button = document.createElement("button");
+      button.id = DEBUG_BUTTON_ID;
+      button.type = "button";
+      button.textContent = "Debug";
+      button.title = "Copy quiz helper debug report";
+      button.addEventListener("click", copyDebugReport);
+      panel.appendChild(button);
+    } else if (button.parentElement !== panel) {
+      panel.appendChild(button);
+    }
+
+    let hint = document.getElementById(ANSWER_HINT_ID);
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = ANSWER_HINT_ID;
+      panel.appendChild(hint);
+    } else if (hint.parentElement !== panel) {
+      panel.appendChild(hint);
+    }
+
+    return {
+      panel,
+      status,
+      button,
+      hint
+    };
+  }
+
   function setStatus(message, persistMs = 3500) {
     if (statusTimer) {
       window.clearTimeout(statusTimer);
@@ -149,22 +198,22 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     if (!message) {
-      document.getElementById(STATUS_ID)?.remove();
+      const status = document.getElementById(STATUS_ID);
+      if (status) {
+        status.textContent = "";
+      }
       return;
     }
 
-    let status = document.getElementById(STATUS_ID);
-    if (!status) {
-      status = document.createElement("div");
-      status.id = STATUS_ID;
-      document.documentElement.appendChild(status);
-    }
-
+    const { status } = ensurePanel();
     status.textContent = message;
 
     if (persistMs > 0) {
       statusTimer = window.setTimeout(() => {
-        document.getElementById(STATUS_ID)?.remove();
+        const currentStatus = document.getElementById(STATUS_ID);
+        if (currentStatus) {
+          currentStatus.textContent = "";
+        }
         statusTimer = null;
       }, persistMs);
     }
@@ -175,18 +224,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
-    let hint = document.getElementById(ANSWER_HINT_ID);
-    if (!hint) {
-      hint = document.createElement("div");
-      hint.id = ANSWER_HINT_ID;
-      document.documentElement.appendChild(hint);
-    }
-
+    const { hint } = ensurePanel();
     hint.textContent = answerText;
   }
 
   function hideAnswerHint() {
-    document.getElementById(ANSWER_HINT_ID)?.remove();
+    const hint = document.getElementById(ANSWER_HINT_ID);
+    if (hint) {
+      hint.textContent = "";
+    }
   }
 
   function copyTextFallback(text) {
@@ -244,17 +290,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function addDebugButton() {
-    if (document.getElementById(DEBUG_BUTTON_ID)) {
-      return;
-    }
-
-    const button = document.createElement("button");
-    button.id = DEBUG_BUTTON_ID;
-    button.type = "button";
-    button.textContent = "Debug";
-    button.title = "Copy quiz helper debug report";
-    button.addEventListener("click", copyDebugReport);
-    document.documentElement.appendChild(button);
+    ensurePanel();
   }
 
   function clearPreviousMarkers() {
@@ -466,10 +502,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
   function isOwnUi(element) {
     return Boolean(
       element.id === TOAST_ID ||
+      element.id === PANEL_ID ||
       element.id === DEBUG_BUTTON_ID ||
       element.id === ANSWER_HINT_ID ||
       element.id === STATUS_ID ||
-      element.closest(`#${TOAST_ID}, #${DEBUG_BUTTON_ID}, #${ANSWER_HINT_ID}, #${STATUS_ID}`)
+      element.closest(`#${TOAST_ID}, #${PANEL_ID}, #${DEBUG_BUTTON_ID}, #${ANSWER_HINT_ID}, #${STATUS_ID}`)
     );
   }
 
