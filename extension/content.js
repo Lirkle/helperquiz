@@ -65,7 +65,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         grid-template-columns: 1fr auto;
         gap: 6px 8px;
         align-items: center;
-        min-width: 116px;
+        min-width: 150px;
         max-width: min(360px, calc(100vw - 28px));
         border: 1px solid rgba(148, 163, 184, 0.45);
         border-radius: 8px;
@@ -153,6 +153,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     let status = document.getElementById(STATUS_ID);
+    let hint = document.getElementById(ANSWER_HINT_ID);
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = ANSWER_HINT_ID;
+      panel.appendChild(hint);
+    } else if (hint.parentElement !== panel) {
+      panel.appendChild(hint);
+    }
+
     if (!status) {
       status = document.createElement("div");
       status.id = STATUS_ID;
@@ -174,13 +183,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
       panel.appendChild(button);
     }
 
-    let hint = document.getElementById(ANSWER_HINT_ID);
-    if (!hint) {
-      hint = document.createElement("div");
-      hint.id = ANSWER_HINT_ID;
-      panel.appendChild(hint);
-    } else if (hint.parentElement !== panel) {
-      panel.appendChild(hint);
+    if (hint !== panel.firstElementChild) {
+      panel.insertBefore(hint, panel.firstElementChild);
     }
 
     return {
@@ -226,6 +230,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     const { hint } = ensurePanel();
     hint.textContent = answerText;
+  }
+
+  function getMarkerRows(rows) {
+    return rows && rows.length ? rows : undefined;
+  }
+
+  function formatAnswerHint(answer) {
+    const parts = [answer.answer, answer.answerText].filter(Boolean);
+    return parts.join(" - ");
   }
 
   function hideAnswerHint() {
@@ -1465,13 +1478,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const bankAnswers = payload.options.length >= 2 ? findBankAnswers(payload) : [];
     if (bankAnswers.length) {
       answerCache.set(signature, bankAnswers);
-      const markedCount = addMarkers(bankAnswers, optionPayload.rows);
+      const markedCount = addMarkers(bankAnswers, getMarkerRows(optionPayload.rows));
       lastAutoAskSignature = signature;
       lastDebug.status = "used-bank";
       lastDebug.answers = bankAnswers;
       lastDebug.markedCount = markedCount;
       if (!markedCount) {
-        showAnswerHint(bankAnswers[0].answerText || "");
+        const bankHint = formatAnswerHint(bankAnswers[0]);
+        showAnswerHint(bankHint);
+        lastDebug.answerHint = bankHint;
         lastDebug.status = "used-bank-hint";
         setStatus("bank hint", 4500);
       } else {
@@ -1503,7 +1518,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         return;
       }
 
-      const markedCount = addMarkers(cachedAnswers, optionPayload.rows);
+      const markedCount = addMarkers(cachedAnswers, getMarkerRows(optionPayload.rows));
       lastAutoAskSignature = signature;
       lastDebug.status = "used-cache";
       lastDebug.answers = cachedAnswers;
@@ -1588,7 +1603,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.answers = answers;
       if (answers.length) {
         answerCache.set(signature, answers);
-        const markedCount = addMarkers(answers, optionPayload.rows);
+        const markedCount = addMarkers(answers, getMarkerRows(optionPayload.rows));
         lastDebug.status = "marked";
         lastDebug.markedCount = markedCount;
         if (!markedCount) {
