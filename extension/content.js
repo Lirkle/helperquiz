@@ -496,7 +496,47 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return "";
     }
 
-    return (element.innerText || element.textContent || "").trim();
+    return getElementTextWithMath(element);
+  }
+
+  function getElementTextWithMath(element) {
+    const clone = element.cloneNode(true);
+    clone.querySelectorAll?.("mjx-container").forEach((mathElement) => {
+      mathElement.replaceWith(document.createTextNode(getMathJaxText(mathElement)));
+    });
+
+    return (clone.innerText || clone.textContent || getMathJaxText(element) || "").trim();
+  }
+
+  function getMathJaxText(element) {
+    if (!element) {
+      return "";
+    }
+
+    const mathContainers = element.matches?.("mjx-container")
+      ? [element]
+      : Array.from(element.querySelectorAll?.("mjx-container") || []);
+
+    return mathContainers
+      .map((container) => {
+        const ariaLabel = container.getAttribute("aria-label");
+        if (ariaLabel) {
+          return ariaLabel.trim();
+        }
+
+        const math = container.querySelector("mjx-assistive-mml math");
+        if (!math) {
+          return "";
+        }
+
+        return Array.from(math.querySelectorAll("mn, mi, mo, mtext"))
+          .map((node) => node.textContent || "")
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+      })
+      .filter(Boolean)
+      .join(" ");
   }
 
   function isOwnUi(element) {
@@ -907,7 +947,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function getRawSelectionText() {
-    return stripMarkerSuffixes(window.getSelection()?.toString() || "").trim();
+    const selectionText = window.getSelection()?.toString() || "";
+    const selectionElement = getSelectionElement();
+    const mathText = selectionElement ? getMathJaxText(selectionElement) : "";
+    const combinedText = mathText && !selectionText.includes(mathText)
+      ? `${selectionText} ${mathText}`
+      : selectionText;
+
+    return stripMarkerSuffixes(combinedText).trim();
   }
 
   function getSelectionElement() {
@@ -1110,7 +1157,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   function getFocusedQuizText(rows, options) {
     const firstRow = rows[0]?.element;
     if (!firstRow) {
-      return document.body ? document.body.innerText : "";
+      return document.body ? getVisibleText(document.body) : "";
     }
 
     const optionTextLength = options.reduce((total, option) => total + option.text.length, 0);
@@ -1131,7 +1178,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     const questionText = stripMarkerSuffixes(
-      bestText || (document.body ? document.body.innerText.slice(0, 5000) : "")
+      bestText || (document.body ? getVisibleText(document.body).slice(0, 5000) : "")
     );
     const optionLines = options
       .map((option) => `${option.letter}. ${option.text}`)
