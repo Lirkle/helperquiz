@@ -228,7 +228,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function formatAnswerHint(answer) {
-    return answer.answerText || answer.answer || "";
+    const parts = [answer.answer, answer.answerText].filter(Boolean);
+    return parts.join(" - ");
   }
 
   function formatAnswerHints(answers) {
