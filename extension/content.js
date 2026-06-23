@@ -21,6 +21,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     events: []
   };
   let lastCompletedDebug = null;
+  let quizBankEntries = null;
 
   function addStyles() {
     document.getElementById(TOAST_ID)?.remove();
@@ -80,6 +81,124 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     return value.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+  }
+
+  function normalizeBankText(value) {
+    return String(value || "")
+      .replace(/\s*\.\.\s*$/g, "")
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function parseQuizBankRaw(raw, answers) {
+    if (typeof raw !== "string" || !Array.isArray(answers)) {
+      return [];
+    }
+
+    const questionPattern = /(?:^|\n)\s*(\d+)\.\s+([\s\S]*?)(?=\n\s*\d+\.\s+|$)/g;
+    const entries = [];
+    let match;
+
+    while ((match = questionPattern.exec(raw))) {
+      const questionNumber = Number(match[1]);
+      const block = match[2].trim();
+      const optionPattern = /^\s*([A-E])\)\s+(.+)$/gm;
+      const optionMatches = Array.from(block.matchAll(optionPattern));
+      const firstOptionIndex = block.search(/^\s*A\)\s+/m);
+      const questionText = firstOptionIndex === -1 ? block : block.slice(0, firstOptionIndex).trim();
+      const options = optionMatches.map((optionMatch) => ({
+        letter: optionMatch[1].toUpperCase(),
+        text: optionMatch[2].trim(),
+        normalizedText: normalizeBankText(optionMatch[2])
+      }));
+      const answerText = answers[questionNumber - 1];
+
+      if (questionNumber && questionText && options.length >= 2 && answerText) {
+        entries.push({
+          questionNumber,
+          questionText,
+          normalizedQuestion: normalizeBankText(questionText),
+          options,
+          answerText,
+          normalizedAnswer: normalizeBankText(answerText)
+        });
+      }
+    }
+
+    return entries;
+  }
+
+  function getQuizBankEntries() {
+    if (quizBankEntries) {
+      return quizBankEntries;
+    }
+
+    const banks = window.QUIZ_BANKS || {};
+    quizBankEntries = Object.values(banks).flatMap((bank) =>
+      parseQuizBankRaw(bank.raw, bank.answers)
+    );
+    return quizBankEntries;
+  }
+
+  function scoreBankEntry(entry, payloadOptions, payloadText) {
+    const currentOptionTexts = new Set(payloadOptions.map((option) => normalizeBankText(option.text)));
+    const matchedOptions = entry.options.filter((option) =>
+      currentOptionTexts.has(option.normalizedText)
+    ).length;
+    const questionMatched = normalizeBankText(payloadText).includes(entry.normalizedQuestion);
+    const score = matchedOptions + (questionMatched ? 2 : 0);
+
+    return {
+      matchedOptions,
+      questionMatched,
+      score
+    };
+  }
+
+  function findBankAnswers(payload) {
+    const payloadOptions = payload.options || [];
+    if (payloadOptions.length < 2) {
+      return [];
+    }
+
+    const entries = getQuizBankEntries();
+    if (!entries.length) {
+      return [];
+    }
+
+    const bestEntry = entries
+      .map((entry) => ({
+        entry,
+        match: scoreBankEntry(entry, payloadOptions, payload.text || "")
+      }))
+      .filter((item) =>
+        item.match.matchedOptions >= Math.min(3, payloadOptions.length) ||
+        (item.match.questionMatched && item.match.matchedOptions >= 1)
+      )
+      .sort((a, b) => b.match.score - a.match.score)[0]?.entry;
+
+    if (!bestEntry) {
+      return [];
+    }
+
+    const matchedOption = payloadOptions.find((option) =>
+      normalizeBankText(option.text) === bestEntry.normalizedAnswer
+    );
+
+    if (!matchedOption) {
+      return [];
+    }
+
+    return [
+      {
+        questionNumber: Number(matchedOption.groupNumber) || 1,
+        answer: matchedOption.letter,
+        optionId: matchedOption.optionId
+      }
+    ];
   }
 
   function normalizeAnswers(data) {
@@ -717,6 +836,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
     if (signature === lastAutoAskSignature && payloadHasMarker(payload)) {
       lastDebug.status = "skipped-existing-marker";
       addDebugEvent("skip", { reason: "same-signature-with-marker", signature });
+      return;
+    }
+
+    const bankAnswers = findBankAnswers(payload);
+    if (bankAnswers.length) {
+      answerCache.set(signature, bankAnswers);
+      const markedCount = addMarkers(bankAnswers);
+      lastAutoAskSignature = signature;
+      lastDebug.status = "used-bank";
+      lastDebug.answers = bankAnswers;
+      lastDebug.markedCount = markedCount;
+      addDebugEvent("bank-hit", { signature, markedCount, answers: bankAnswers });
+      lastCompletedDebug = { ...lastDebug };
       return;
     }
 
