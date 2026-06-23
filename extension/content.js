@@ -10,7 +10,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   let autoAskTimer = null;
   let isAutoAsking = false;
   let lastAutoAskSignature = "";
-  let markerTextNodes = [];
+  let markerTextEdits = [];
 
   function addStyles() {
     if (document.getElementById(STYLE_ID)) {
@@ -68,12 +68,18 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function clearPreviousMarkers() {
     document.querySelectorAll(`.${MARKER_CLASS}`).forEach((marker) => marker.remove());
-    markerTextNodes.forEach((marker) => {
-      if (marker.parentNode) {
-        marker.remove();
+    markerTextEdits.forEach((edit) => {
+      if (!edit.node.parentNode) {
+        return;
+      }
+
+      if (edit.originalText === null) {
+        edit.node.remove();
+      } else {
+        edit.node.nodeValue = edit.originalText;
       }
     });
-    markerTextNodes = [];
+    markerTextEdits = [];
   }
 
   function normalizeAnswer(answer) {
@@ -309,6 +315,35 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return textTargets[0] || answerElement;
   }
 
+  function findMarkerTextNode(answerElement, letter) {
+    const walker = document.createTreeWalker(answerElement, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        const text = node.nodeValue || "";
+        const trimmed = text.trim();
+
+        if (
+          !parent ||
+          !trimmed ||
+          trimmed === letter ||
+          parent.closest("input, textarea, select, script, style") ||
+          isOwnUi(parent)
+        ) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+
+    let candidate = null;
+    while (walker.nextNode()) {
+      candidate = walker.currentNode;
+    }
+
+    return candidate;
+  }
+
   function findAnswerElement(answer, answerIndex, groups) {
     const optionId = normalizeOptionId(answer.optionId);
     if (optionId) {
@@ -339,10 +374,23 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return false;
     }
 
-    const marker = document.createTextNode("..");
+    const textNode = findMarkerTextNode(answerElement, letter);
 
+    if (textNode) {
+      markerTextEdits.push({
+        node: textNode,
+        originalText: textNode.nodeValue
+      });
+      textNode.nodeValue += "..";
+      return true;
+    }
+
+    const marker = document.createTextNode("..");
     findMarkerTarget(answerElement, letter).appendChild(marker);
-    markerTextNodes.push(marker);
+    markerTextEdits.push({
+      node: marker,
+      originalText: null
+    });
     return true;
   }
 
