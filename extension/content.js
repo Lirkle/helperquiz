@@ -2,7 +2,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
 (function () {
   const TOAST_ID = "page-notes-toast";
-  const DEBUG_BUTTON_ID = "page-notes-debug";
   const MARKER_CLASS = "page-notes-marker";
   const STYLE_ID = "page-notes-style";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
@@ -14,11 +13,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
   let lastAutoAskSignature = "";
   let markerTextEdits = [];
   const answerCache = new Map();
-  let lastDebug = {
-    status: "not-started",
-    events: []
-  };
-  let lastCompletedDebug = null;
 
   function addStyles() {
     if (document.getElementById(STYLE_ID)) {
@@ -53,29 +47,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
         line-height: inherit;
       }
 
-      #${DEBUG_BUTTON_ID} {
-        position: fixed;
-        right: 16px;
-        bottom: 16px;
-        z-index: 2147483647;
-        box-sizing: border-box;
-        min-width: 64px;
-        min-height: 32px;
-        border: 0;
-        border-radius: 8px;
-        padding: 0 10px;
-        background: #0f172a;
-        color: #ffffff;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        font-weight: 700;
-        cursor: pointer;
-        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-      }
-
-      #${DEBUG_BUTTON_ID}:hover {
-        background: #1e293b;
-      }
     `;
     document.documentElement.appendChild(style);
   }
@@ -164,82 +135,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function isOwnUi(element) {
-    return Boolean(
-      element.id === TOAST_ID ||
-      element.id === DEBUG_BUTTON_ID ||
-      element.closest(`#${TOAST_ID}, #${DEBUG_BUTTON_ID}`)
-    );
-  }
-
-  function addDebugEvent(type, details = {}) {
-    lastDebug.events = [
-      ...(lastDebug.events || []).slice(-19),
-      {
-        type,
-        at: new Date().toISOString(),
-        ...details
-      }
-    ];
-  }
-
-  function copyTextFallback(text) {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    textarea.style.top = "0";
-    document.documentElement.appendChild(textarea);
-    textarea.select();
-
-    try {
-      return document.execCommand("copy");
-    } finally {
-      textarea.remove();
-    }
-  }
-
-  async function copyDebugReport() {
-    const payload = buildAskPayload();
-    const report = {
-      createdAt: new Date().toISOString(),
-      url: location.href,
-      title: document.title,
-      lastDebug,
-      currentSignature: getAutoAskSignature(payload),
-      currentPayload: payload,
-      markerCount: markerTextEdits.length,
-      cacheSize: answerCache.size,
-      lastCompletedDebug
-    };
-    const text = JSON.stringify(report, null, 2);
-
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast("Debug copied");
-    } catch (error) {
-      if (copyTextFallback(text)) {
-        showToast("Debug copied");
-        return;
-      }
-
-      console.log("Quiz helper debug report:", report);
-      showToast("Debug printed to console");
-    }
-  }
-
-  function addDebugButton() {
-    if (document.getElementById(DEBUG_BUTTON_ID)) {
-      return;
-    }
-
-    const button = document.createElement("button");
-    button.id = DEBUG_BUTTON_ID;
-    button.type = "button";
-    button.textContent = "Debug";
-    button.title = "Copy quiz helper debug report";
-    button.addEventListener("click", copyDebugReport);
-    document.documentElement.appendChild(button);
+    return Boolean(element.id === TOAST_ID || element.closest(`#${TOAST_ID}`));
   }
 
   function getLetterFromPrefix(element) {
@@ -756,54 +652,28 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   async function runAutoAsk() {
     if (isAutoAsking) {
-      addDebugEvent("skip", { reason: "already-running" });
       return;
     }
 
     const payload = buildAskPayload();
     if (payload.options.length < 2) {
-      lastDebug = {
-        status: "no-options",
-        at: new Date().toISOString(),
-        optionCount: payload.options.length,
-        payload,
-        events: lastDebug.events || []
-      };
-      addDebugEvent("skip", { reason: "not-enough-options", optionCount: payload.options.length });
       return;
     }
 
     const signature = getAutoAskSignature(payload);
-    lastDebug = {
-      status: "ready",
-      at: new Date().toISOString(),
-      signature,
-      payload,
-      events: lastDebug.events || []
-    };
-
     if (signature === lastAutoAskSignature && markerTextEdits.length) {
-      lastDebug.status = "skipped-existing-marker";
-      addDebugEvent("skip", { reason: "same-signature-with-marker", signature });
       return;
     }
 
     if (answerCache.has(signature)) {
       const cachedAnswers = answerCache.get(signature);
-      const markedCount = addMarkers(cachedAnswers);
+      addMarkers(cachedAnswers);
       lastAutoAskSignature = signature;
-      lastDebug.status = "used-cache";
-      lastDebug.answers = cachedAnswers;
-      lastDebug.markedCount = markedCount;
-      addDebugEvent("cache-hit", { signature, markedCount, answers: cachedAnswers });
-      lastCompletedDebug = { ...lastDebug };
       return;
     }
 
     isAutoAsking = true;
     lastAutoAskSignature = signature;
-    lastDebug.status = "requesting";
-    addDebugEvent("request", { signature, optionCount: payload.options.length });
 
     try {
       const response = await fetch(`${SERVER_URL}/ask`, {
@@ -815,45 +685,22 @@ const SERVER_URL = "https://joker67.up.railway.app";
       });
 
       const data = await response.json().catch(() => ({}));
-      lastDebug.response = {
-        ok: response.ok,
-        status: response.status,
-        data
-      };
       if (!response.ok) {
         throw new Error(data.error || `Server error ${response.status}`);
       }
 
       const currentPayload = buildAskPayload();
       if (getAutoAskSignature(currentPayload) !== signature) {
-        lastDebug.status = "stale-response";
-        lastDebug.currentPayload = currentPayload;
-        addDebugEvent("stale-response", {
-          requestSignature: signature,
-          currentSignature: getAutoAskSignature(currentPayload)
-        });
         scheduleAutoAsk();
         return;
       }
 
       const answers = normalizeAnswers(data);
-      lastDebug.answers = answers;
       if (answers.length) {
         answerCache.set(signature, answers);
-        const markedCount = addMarkers(answers);
-        lastDebug.status = "marked";
-        lastDebug.markedCount = markedCount;
-        addDebugEvent("marked", { signature, markedCount, answers });
-        lastCompletedDebug = { ...lastDebug };
-      } else {
-        lastDebug.status = "no-answers";
-        addDebugEvent("no-answers", { signature, data });
-        lastCompletedDebug = { ...lastDebug };
+        addMarkers(answers);
       }
     } catch (error) {
-      lastDebug.status = "error";
-      lastDebug.error = error.message;
-      addDebugEvent("error", { message: error.message });
       showToast(`Error: ${error.message}`);
     } finally {
       isAutoAsking = false;
@@ -879,6 +726,5 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   addStyles();
-  addDebugButton();
   startAutoMode();
 })();
