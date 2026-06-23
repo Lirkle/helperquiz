@@ -867,6 +867,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
       subtree: true,
       characterData: true
     });
+
+    window.setInterval(() => {
+      scheduleAutoAsk();
+    }, 500);
   }
 
   addStyles();
