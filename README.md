@@ -113,6 +113,20 @@ online
 
 ## Загрузка extension в Chrome
 
+Готовый архив можно скачать с Railway:
+
+```text
+https://daniksuper.up.railway.app/download-extension
+```
+
+Также есть страница с кнопкой скачивания:
+
+```text
+https://daniksuper.up.railway.app/extension
+```
+
+После скачивания распакуй архив. Внутри будет папка `extension`.
+
 1. Открой Chrome.
 2. Перейди на страницу:
 

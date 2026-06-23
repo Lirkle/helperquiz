@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const OpenAI = require("openai");
+const archiver = require("archiver");
+const path = require("path");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,6 +19,90 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/", (req, res) => {
   res.type("text/plain").send("online");
+});
+
+app.get("/extension", (req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quiz Helper AI Extension</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f8fafc;
+        color: #111827;
+        font-family: Arial, sans-serif;
+      }
+
+      main {
+        width: min(520px, calc(100vw - 32px));
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0 0 20px;
+        color: #4b5563;
+        font-size: 16px;
+        line-height: 1.5;
+      }
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 8px;
+        background: #166534;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      a:hover {
+        background: #15803d;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Quiz Helper AI</h1>
+      <p>Скачай архив расширения, распакуй его и загрузи папку extension через chrome://extensions/.</p>
+      <a href="/download-extension">Скачать расширение</a>
+    </main>
+  </body>
+</html>`);
+});
+
+app.get("/download-extension", (req, res, next) => {
+  const extensionDirectory = path.resolve(__dirname, "..", "extension");
+
+  res.attachment("quiz-helper-extension.zip");
+
+  const archive = archiver("zip", {
+    zlib: {
+      level: 9
+    }
+  });
+
+  archive.on("error", (error) => {
+    next(error);
+  });
+
+  archive.pipe(res);
+  archive.directory(extensionDirectory, "extension");
+  archive.finalize();
 });
 
 app.post("/ask", async (req, res, next) => {
