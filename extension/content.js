@@ -353,32 +353,21 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return [];
     }
 
-    const entries = getQuizBankEntries();
-    if (!entries.length) {
+    if (!questionEntry) {
       return [];
     }
 
-    const bestEntry = entries
-      .map((entry) => ({
-        entry,
-        match: scoreBankEntry(entry, payloadOptions, payload.text || "")
-      }))
-      .filter((item) =>
-        item.match.matchedOptions >= Math.min(3, payloadOptions.length) ||
-        (item.match.questionMatched && item.match.matchedOptions >= 1)
-      )
-      .sort((a, b) => b.match.score - a.match.score)[0]?.entry || questionEntry;
-
-    if (!bestEntry) {
+    const match = scoreBankEntry(questionEntry, payloadOptions, payload.text || "");
+    if (!match.questionMatched) {
       return [];
     }
 
     const matchedOption = payloadOptions.find((option) =>
-      normalizeBankText(option.text) === bestEntry.normalizedAnswer
+      normalizeBankText(option.text) === questionEntry.normalizedAnswer
     );
 
     if (!matchedOption) {
-      showAnswerHint(bestEntry.answerText);
+      showAnswerHint(questionEntry.answerText);
       return [];
     }
 
@@ -387,7 +376,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         questionNumber: Number(matchedOption.groupNumber) || 1,
         answer: matchedOption.letter,
         optionId: matchedOption.optionId,
-        answerText: bestEntry.answerText
+        answerText: questionEntry.answerText
       }
     ];
   }
