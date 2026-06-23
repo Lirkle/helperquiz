@@ -1206,7 +1206,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
   }
 
-  function scheduleSelectionAsk(delay = 120) {
+  function scheduleSelectionAsk(delay = 450) {
     if (autoAskTimer) {
       window.clearTimeout(autoAskTimer);
     }
@@ -1390,11 +1390,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function startSelectionMode() {
-    document.addEventListener("selectionchange", () => {
+    document.addEventListener("mouseup", () => {
       scheduleSelectionAsk();
     });
 
-    document.addEventListener("mouseup", () => {
+    document.addEventListener("touchend", () => {
       scheduleSelectionAsk();
     });
 
