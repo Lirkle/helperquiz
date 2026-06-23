@@ -34,6 +34,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
+      html, body, body *:not(input):not(textarea):not(select):not(option) {
+        -webkit-user-select: text !important;
+        user-select: text !important;
+        -webkit-touch-callout: default !important;
+      }
+
       .${MARKER_CLASS} {
         display: inline;
         margin-left: 3px;
@@ -44,6 +50,24 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     `;
     document.documentElement.appendChild(style);
+  }
+
+  function enableTextSelection() {
+    document.onselectstart = null;
+    document.onmousedown = null;
+
+    if (document.body) {
+      document.body.onselectstart = null;
+      document.body.onmousedown = null;
+    }
+
+    document.addEventListener(
+      "selectstart",
+      (event) => {
+        event.stopPropagation();
+      },
+      true
+    );
   }
 
   function showToast(message) {
@@ -1022,5 +1046,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   addStyles();
+  enableTextSelection();
   startSelectionMode();
 })();
