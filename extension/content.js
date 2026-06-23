@@ -562,11 +562,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function selectActiveRows(rows) {
     const rowGroups = groupOptionRowObjects(rows);
-    if (rowGroups.length <= 1) {
-      return rows;
+    const unmarkedRowGroups = rowGroups.filter((group) =>
+      group.every((row) => !hasAnswerMarker(row.element))
+    );
+
+    if (!unmarkedRowGroups.length) {
+      return [];
     }
 
-    const scoredGroups = rowGroups
+    if (unmarkedRowGroups.length <= 1) {
+      return unmarkedRowGroups[0];
+    }
+
+    const scoredGroups = unmarkedRowGroups
       .map((group) => ({
         group,
         score: group.reduce((total, row) => total + getViewportScore(row.element), 0)
@@ -575,11 +583,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .sort((a, b) => b.score - a.score);
 
     if (scoredGroups.length > 1) {
-      const unmarkedGroups = scoredGroups.filter((item) =>
-        item.group.every((row) => !hasAnswerMarker(row.element))
-      );
-
-      return unmarkedGroups
+      return scoredGroups
         .sort((a, b) => compareDocumentOrder(a.group[0].element, b.group[0].element))
         .slice(0, MAX_GROUPS_PER_REQUEST)
         .flatMap((item) => item.group);
