@@ -1,0 +1,26 @@
+{
+  "name": "quiz-helper-ai-server",
+  "version": "1.0.0",
+  "description": "Express backend for a Chrome extension that asks OpenAI for a likely quiz answer letter.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "express",
+    "openai",
+    "railway",
+    "chrome-extension"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "openai": "^4.56.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
