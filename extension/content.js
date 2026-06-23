@@ -898,6 +898,26 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return selectActiveRows(collectOptionRows());
   }
 
+  function getSelectionContextText(selectionElement, selectionText) {
+    let element = selectionElement;
+    let bestText = selectionText || "";
+
+    while (element && element !== document.body) {
+      const text = stripMarkerSuffixes(getVisibleText(element)).replace(/\s+/g, " ").trim();
+      if (
+        text.length > bestText.length &&
+        text.length <= 800 &&
+        (!selectionText || text.includes(selectionText))
+      ) {
+        bestText = text;
+      }
+
+      element = element.parentElement;
+    }
+
+    return bestText;
+  }
+
   function parseSelectedQuestionAndOptions(selectionText) {
     const rawLines = String(selectionText || "")
       .split(/\r?\n/)
@@ -1085,6 +1105,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function buildOptionOnlyPayload(selectionText = "", rawSelectionText = "") {
     const selectionElement = selectionText ? getSelectionElement() : null;
+    const contextText = selectionElement
+      ? getSelectionContextText(selectionElement, selectionText)
+      : selectionText;
     const nearbyRows = selectionElement
       ? findSelectionOptionRows(selectionElement)
       : selectActiveRows(collectOptionRows());
@@ -1106,12 +1129,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const options = selectedOptions.length >= 2
       ? selectedOptions.map(({ element, ...option }) => option)
       : buildOptionPayload(rows, groups);
-    const selectedQuestionText = selectedQuiz.questionText || selectionText;
+    const selectedQuestionText = selectedQuiz.questionText || contextText || selectionText;
 
     return {
       rows,
       options,
       selectionText: selectedQuestionText,
+      selectedText: selectionText,
+      contextText,
       rawSelectionText,
       selectionOptions: selectedOptions
     };
@@ -1238,6 +1263,20 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
 
     return markedCount;
+  }
+
+  function attachAnswerTexts(answers, options) {
+    return answers.map((answer) => {
+      if (answer.answerText) {
+        return answer;
+      }
+
+      const option = options.find((item) => item.letter === answer.answer);
+      return {
+        ...answer,
+        answerText: option?.text || answer.answerText || ""
+      };
+    });
   }
 
   function getAutoAskSignature(payload) {
@@ -1430,14 +1469,18 @@ const SERVER_URL = "https://joker67.up.railway.app";
         return;
       }
 
-      const answers = normalizeAnswers(data);
+      const answers = attachAnswerTexts(normalizeAnswers(data), optionPayload.options);
       lastDebug.answers = answers;
       if (answers.length) {
         answerCache.set(signature, answers);
         const markedCount = addMarkers(answers, optionPayload.rows);
         lastDebug.status = "marked";
         lastDebug.markedCount = markedCount;
-        setStatus(markedCount ? "AI done" : "AI answered, no marker", 4500);
+        if (!markedCount) {
+          showAnswerHint(answers[0]?.answerText || answers[0]?.answer || "");
+          lastDebug.status = "ai-hint";
+        }
+        setStatus(markedCount ? "AI done" : "AI hint", 4500);
         addDebugEvent("marked", { signature, markedCount, answers });
         lastCompletedDebug = { ...lastDebug };
       } else {
