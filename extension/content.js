@@ -155,6 +155,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return getLetterFromPrefix(element) || getLetterFromBadge(element);
   }
 
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(value);
+    }
+
+    return value.replace(/["\\]/g, "\\$&");
+  }
+
   function getOptionInput(element) {
     return element.matches("input[type='radio'], input[type='checkbox']")
       ? element
@@ -174,6 +182,48 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return input.name || input.getAttribute("data-name") || "";
   }
 
+  function getAssociatedLabel(input) {
+    if (!input || input.tagName.toLowerCase() !== "input") {
+      return null;
+    }
+
+    if (input.labels && input.labels.length) {
+      return input.labels[0];
+    }
+
+    if (input.id) {
+      return document.querySelector(`label[for="${cssEscape(input.id)}"]`);
+    }
+
+    return input.closest("label");
+  }
+
+  function normalizeOptionCandidate(element) {
+    if (element.matches("input[type='radio'], input[type='checkbox']")) {
+      const label = getAssociatedLabel(element);
+      if (label) {
+        return label;
+      }
+
+      return element.closest("label, li, tr, p, div, section, article") || element;
+    }
+
+    return element;
+  }
+
+  function hasOptionRole(element) {
+    const role = element.getAttribute("role");
+    return role === "radio" || role === "option" || role === "menuitemradio";
+  }
+
+  function hasOptionHint(element) {
+    const hint = `${element.className || ""} ${element.id || ""} ${Array.from(element.attributes)
+      .map((attribute) => `${attribute.name} ${attribute.value}`)
+      .join(" ")}`.toLowerCase();
+
+    return /\b(choice|option|answer|variant|response|radio)\b/.test(hint);
+  }
+
   function isLikelyOptionRow(element) {
     const text = getVisibleText(element);
     if (!text || text.length < 2 || text.length > 900) {
@@ -181,18 +231,22 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     const letter = getOptionLetter(element);
-    return Boolean((letter && text !== letter) || hasOptionInput(element));
+    return Boolean((letter && text !== letter) || hasOptionInput(element) || hasOptionRole(element));
   }
 
   function scoreOptionRow(element) {
     let score = 0;
 
-    if (element.querySelector("input[type='radio'], input[type='checkbox']")) {
+    if (hasOptionInput(element)) {
       score += 10;
     }
 
-    if (element.getAttribute("role") === "radio" || element.getAttribute("role") === "option") {
+    if (hasOptionRole(element)) {
       score += 8;
+    }
+
+    if (hasOptionHint(element)) {
+      score += 4;
     }
 
     if (getLetterFromBadge(element)) {
@@ -226,8 +280,30 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function collectOptionRows(root = document.body) {
     const rawCandidates = Array.from(
-      root.querySelectorAll("label, li, button, [role='radio'], [role='option'], div, p")
+      root.querySelectorAll(
+        [
+          "input[type='radio']",
+          "input[type='checkbox']",
+          "label",
+          "li",
+          "button",
+          "tr",
+          "[role='radio']",
+          "[role='option']",
+          "[role='menuitemradio']",
+          "[aria-checked]",
+          "[data-option]",
+          "[data-answer]",
+          "[class*='option' i]",
+          "[class*='choice' i]",
+          "[class*='answer' i]",
+          "div",
+          "p"
+        ].join(", ")
+      )
     )
+      .map(normalizeOptionCandidate)
+      .filter((element, index, elements) => elements.indexOf(element) === index)
       .filter((element) => !isOwnUi(element) && isLikelyOptionRow(element))
       .map((element) => ({
         element,
