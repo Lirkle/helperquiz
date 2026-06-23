@@ -459,6 +459,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
         throw new Error(data.error || `Server error ${response.status}`);
       }
 
+      const currentPayload = buildAskPayload();
+      if (getAutoAskSignature(currentPayload) !== signature) {
+        scheduleAutoAsk();
+        return;
+      }
+
       const answers = normalizeAnswers(data);
       if (answers.length) {
         addMarkers(answers);
