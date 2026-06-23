@@ -353,11 +353,7 @@ function normalizeOptionId(value) {
 
 function buildUserPrompt(text, options) {
   if (!options.length) {
-    return JSON.stringify({
-      mode: "open-question",
-      instruction: "Answer the user's question directly and concisely. Return plain text, not JSON.",
-      question: text.slice(0, 60000)
-    });
+    return text.slice(0, 60000);
   }
 
   const payload = {
