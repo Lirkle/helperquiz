@@ -10,6 +10,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   let autoAskTimer = null;
   let isAutoAsking = false;
   let lastAutoAskSignature = "";
+  let markerTextNodes = [];
 
   function addStyles() {
     if (document.getElementById(STYLE_ID)) {
@@ -67,6 +68,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function clearPreviousMarkers() {
     document.querySelectorAll(`.${MARKER_CLASS}`).forEach((marker) => marker.remove());
+    markerTextNodes.forEach((marker) => {
+      if (marker.parentNode) {
+        marker.remove();
+      }
+    });
+    markerTextNodes = [];
   }
 
   function normalizeAnswer(answer) {
@@ -332,12 +339,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return false;
     }
 
-    const marker = document.createElement("span");
-    marker.className = MARKER_CLASS;
-    marker.textContent = "..";
-    marker.title = `Note ${letter}`;
+    const marker = document.createTextNode("..");
 
     findMarkerTarget(answerElement, letter).appendChild(marker);
+    markerTextNodes.push(marker);
     return true;
   }
 
