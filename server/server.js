@@ -10,6 +10,7 @@ const port = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4";
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+const PRIMARY_PROVIDER = normalizeProvider(process.env.PRIMARY_PROVIDER) || "openai";
 
 const SYSTEM_PROMPT =
   "You are a study quiz assistant. You receive pageText and, when detected, an options array with optionId, groupNumber, inputType, letter, and text. Choose answers only from the provided options. Solve from the question and option text; ignore UI feedback such as Correct, Incorrect, Правильно, Неправильно, colors, buttons, timers, ads, and old answers. For radio/single-choice questions, return one best option. For checkbox/multiple-choice questions, return every correct option as separate objects in answers, using the same questionNumber if needed. For checkbox questions be conservative: select an option only when it directly and independently satisfies the exact question wording; do not select related-but-wrong, movable, immovable, opposite, or merely same-topic options. If a checkbox option is not clearly correct, omit it. Return only JSON, no markdown, exactly like {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\",\"optionId\":\"pn-opt-1\"},{\"questionNumber\":1,\"answer\":\"C\",\"optionId\":\"pn-opt-3\"}]}. Do not invent questions, numbers, letters, or optionIds. If unsure, return {\"answers\":[]}.";
@@ -148,45 +149,60 @@ app.use((error, req, res, next) => {
 
 async function askWithFallback(text, options) {
   const errors = [];
+  const providers = getProviderOrder();
 
-  if (process.env.OPENAI_API_KEY) {
+  for (const provider of providers) {
+    const config = getProviderConfig(provider);
+
+    if (!config.apiKey) {
+      errors.push(`${provider}: ${config.apiKeyName} is not configured`);
+      continue;
+    }
+
     try {
       return await askProvider({
-        provider: "openai",
-        apiKey: process.env.OPENAI_API_KEY,
-        model: OPENAI_MODEL,
+        provider,
+        apiKey: config.apiKey,
+        baseURL: config.baseURL,
+        model: config.model,
         text,
         options
       });
     } catch (error) {
-      errors.push(formatProviderError("openai", error));
-      console.warn("OpenAI request failed, trying DeepSeek fallback:", getErrorMessage(error));
+      errors.push(formatProviderError(provider, error));
+      console.warn(`${provider} request failed, trying fallback:`, getErrorMessage(error));
     }
-  } else {
-    errors.push("openai: OPENAI_API_KEY is not configured");
-  }
-
-  if (process.env.DEEPSEEK_API_KEY) {
-    try {
-      return await askProvider({
-        provider: "deepseek",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-        baseURL: DEEPSEEK_BASE_URL,
-        model: DEEPSEEK_MODEL,
-        text,
-        options
-      });
-    } catch (error) {
-      errors.push(formatProviderError("deepseek", error));
-      console.error("DeepSeek fallback failed:", getErrorMessage(error));
-    }
-  } else {
-    errors.push("deepseek: DEEPSEEK_API_KEY is not configured");
   }
 
   const error = new Error(`All AI providers failed. ${errors.join("; ")}`);
   error.publicMessage = "All AI providers failed or are not configured";
   throw error;
+}
+
+function normalizeProvider(value) {
+  const provider = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return provider === "openai" || provider === "deepseek" ? provider : "";
+}
+
+function getProviderOrder() {
+  return PRIMARY_PROVIDER === "deepseek" ? ["deepseek", "openai"] : ["openai", "deepseek"];
+}
+
+function getProviderConfig(provider) {
+  if (provider === "deepseek") {
+    return {
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      apiKeyName: "DEEPSEEK_API_KEY",
+      baseURL: DEEPSEEK_BASE_URL,
+      model: DEEPSEEK_MODEL
+    };
+  }
+
+  return {
+    apiKey: process.env.OPENAI_API_KEY,
+    apiKeyName: "OPENAI_API_KEY",
+    model: OPENAI_MODEL
+  };
 }
 
 async function askProvider({ provider, apiKey, baseURL, model, text, options }) {
@@ -369,6 +385,7 @@ function getErrorMessage(error) {
 
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
+  console.log(`Primary provider: ${PRIMARY_PROVIDER}`);
   console.log(`OpenAI model: ${OPENAI_MODEL}`);
   console.log(`DeepSeek model: ${DEEPSEEK_MODEL}`);
 });

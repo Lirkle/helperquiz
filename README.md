@@ -30,6 +30,7 @@ README.md
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+PRIMARY_PROVIDER=openai
 ```
 
 Опционально можно задать модели:
@@ -38,6 +39,15 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 OPENAI_MODEL=gpt-5.4
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
+
+`PRIMARY_PROVIDER` controls which provider is tried first:
+
+```text
+PRIMARY_PROVIDER=openai
+PRIMARY_PROVIDER=deepseek
+```
+
+If `PRIMARY_PROVIDER` is missing or invalid, the server uses `openai` first.
 
 Если `OPENAI_MODEL` не задан, сервер использует:
 
@@ -55,8 +65,8 @@ process.env.PORT || 3000
 
 Сервер делает так:
 
-1. Пробует OpenAI с `OPENAI_API_KEY`.
-2. Если OpenAI вернул ошибку, закончилась квота, ключ не настроен или запрос не прошёл, сервер пробует DeepSeek с `DEEPSEEK_API_KEY`.
+1. Tries the provider from `PRIMARY_PROVIDER`.
+2. If the primary provider fails, has no quota, has no key, or the request fails, the server tries the other provider.
 3. Если оба провайдера недоступны, сервер возвращает ошибку.
 
 Ответ `/ask` содержит:
@@ -90,6 +100,7 @@ Windows PowerShell:
 ```powershell
 $env:OPENAI_API_KEY="your_openai_api_key_here"
 $env:DEEPSEEK_API_KEY="your_deepseek_api_key_here"
+$env:PRIMARY_PROVIDER="openai"
 $env:OPENAI_MODEL="gpt-5.4"
 $env:DEEPSEEK_MODEL="deepseek-v4-flash"
 npm start
@@ -100,6 +111,7 @@ macOS или Linux:
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
 export DEEPSEEK_API_KEY="your_deepseek_api_key_here"
+export PRIMARY_PROVIDER="openai"
 export OPENAI_MODEL="gpt-5.4"
 export DEEPSEEK_MODEL="deepseek-v4-flash"
 npm start
@@ -187,6 +199,7 @@ npm start
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+PRIMARY_PROVIDER=openai
 OPENAI_MODEL=gpt-5.4
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
