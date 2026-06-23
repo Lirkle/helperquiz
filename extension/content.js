@@ -11,7 +11,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
   const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const VALID_ANSWERS = new Set(OPTION_LETTERS);
-  const ASK_TIMEOUT_MS = 8000;
+  const ASK_TIMEOUT_MS = 15000;
   const MAX_GROUPS_PER_REQUEST = 1;
 
   let autoAskTimer = null;
@@ -1127,14 +1127,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
 
     if (options.length < 2 && lines.length >= 3) {
-      const firstPlainOptionIndex = lines.findIndex((line, index) =>
-        index > 0 &&
-        !/[?]$/.test(lines[index - 1]) &&
-        (
-          /^-?\d+(?:[.,]\d+)?$/.test(line) ||
-          (index >= lines.length - 4 && line.length <= 80)
-        )
+      const tailLinesLookLikeOptions = lines.slice(1).every((line) =>
+        /^-?\d+(?:[.,]\d+)?$/.test(line) || line.length <= 80
       );
+      const firstPlainOptionIndex = /[?]$/.test(lines[0]) && tailLinesLookLikeOptions
+        ? 1
+        : lines.findIndex((line, index) =>
+            index > 0 &&
+            !/[?]$/.test(lines[index - 1]) &&
+            (
+              /^-?\d+(?:[.,]\d+)?$/.test(line) ||
+              (index >= lines.length - 4 && line.length <= 80)
+            )
+          );
       const optionStartIndex = firstPlainOptionIndex === -1 ? 1 : firstPlainOptionIndex;
       const optionLines = lines.slice(optionStartIndex).filter((line) => !isLikelyQuizUiControl(line));
       return {
@@ -1229,6 +1234,19 @@ const SERVER_URL = "https://joker67.up.railway.app";
     const selectedOptions = selectedQuiz.options.length >= 2
       ? matchSelectionOptionsToRows(selectedQuiz.options, nearbyRows)
       : [];
+    if (selectionText && selectedOptions.length < 2) {
+      const selectedQuestionText = selectedQuiz.questionText || selectionText;
+      return {
+        rows: [],
+        options: [],
+        selectionText: selectedQuestionText,
+        selectedText: selectionText,
+        contextText,
+        rawSelectionText,
+        selectionOptions: []
+      };
+    }
+
     const rows = selectedOptions.some((option) => option.element)
       ? selectedOptions
           .filter((option) => option.element)
