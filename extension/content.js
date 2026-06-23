@@ -6,6 +6,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const STYLE_ID = "page-notes-style";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
   const VALID_ANSWERS = new Set(["A", "B", "C", "D", "E"]);
+  const OPTION_LETTERS = ["A", "B", "C", "D", "E"];
 
   let autoAskTimer = null;
   let isAutoAsking = false;
@@ -154,6 +155,25 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return getLetterFromPrefix(element) || getLetterFromBadge(element);
   }
 
+  function getOptionInput(element) {
+    return element.matches("input[type='radio'], input[type='checkbox']")
+      ? element
+      : element.querySelector("input[type='radio'], input[type='checkbox']");
+  }
+
+  function hasOptionInput(element) {
+    return Boolean(getOptionInput(element));
+  }
+
+  function getOptionGroupKey(element) {
+    const input = getOptionInput(element);
+    if (!input) {
+      return "";
+    }
+
+    return input.name || input.getAttribute("data-name") || "";
+  }
+
   function isLikelyOptionRow(element) {
     const text = getVisibleText(element);
     if (!text || text.length < 2 || text.length > 900) {
@@ -161,7 +181,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     const letter = getOptionLetter(element);
-    return Boolean(letter && text !== letter);
+    return Boolean((letter && text !== letter) || hasOptionInput(element));
   }
 
   function scoreOptionRow(element) {
@@ -212,6 +232,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .map((element) => ({
         element,
         letter: getOptionLetter(element),
+        groupKey: getOptionGroupKey(element),
         score: scoreOptionRow(element)
       }))
       .sort((a, b) => b.score - a.score);
@@ -232,7 +253,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
     });
 
     selected.sort((a, b) => compareDocumentOrder(a.element, b.element));
+    const syntheticLetterIndexes = new Map();
     selected.forEach((row, index) => {
+      if (!row.letter) {
+        const groupKey = row.groupKey || "default";
+        const letterIndex = syntheticLetterIndexes.get(groupKey) || 0;
+        row.letter = OPTION_LETTERS[letterIndex] || "E";
+        syntheticLetterIndexes.set(groupKey, letterIndex + 1);
+      }
+
       const optionId = row.element.getAttribute(OPTION_ID_ATTR) || `pn-opt-${index + 1}`;
       row.element.setAttribute(OPTION_ID_ATTR, optionId);
       row.optionId = optionId;
