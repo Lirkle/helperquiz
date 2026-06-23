@@ -778,6 +778,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .join("|");
   }
 
+  function payloadHasMarker(payload) {
+    return payload.options.some((option) => {
+      const optionId = normalizeOptionId(option.optionId);
+      const element = optionId ? document.querySelector(`[${OPTION_ID_ATTR}="${optionId}"]`) : null;
+      return element ? hasAnswerMarker(element) : false;
+    });
+  }
+
   function scheduleAutoAsk(delay = 0) {
     if (autoAskTimer) {
       return;
@@ -817,7 +825,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       events: lastDebug.events || []
     };
 
-    if (signature === lastAutoAskSignature && markerTextEdits.length) {
+    if (signature === lastAutoAskSignature && payloadHasMarker(payload)) {
       lastDebug.status = "skipped-existing-marker";
       addDebugEvent("skip", { reason: "same-signature-with-marker", signature });
       return;
