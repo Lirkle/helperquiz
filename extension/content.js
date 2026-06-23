@@ -1,4 +1,4 @@
-const SERVER_URL = "https://daniksuper.up.railway.app";
+const SERVER_URL = "https://joker67.up.railway.app";
 
 (function () {
   const BUTTON_ID = "quiz-helper-ai-button";

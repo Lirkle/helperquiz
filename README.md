@@ -116,13 +116,13 @@ online
 Готовый архив можно скачать с Railway:
 
 ```text
-https://daniksuper.up.railway.app/dwn
+https://joker67.up.railway.app/dwn
 ```
 
 Также есть страница с кнопкой скачивания:
 
 ```text
-https://daniksuper.up.railway.app/extension
+https://joker67.up.railway.app/extension
 ```
 
 После скачивания распакуй архив. Внутри будет папка `extension`.
