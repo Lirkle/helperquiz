@@ -203,9 +203,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return score;
   }
 
-  function findAnswerElement(letter) {
+  function findAnswerElement(letter, root = document.body) {
     const candidates = Array.from(
-      document.body.querySelectorAll("label, li, button, p, div, span")
+      root.querySelectorAll("label, li, button, p, div, span")
     ).filter((element) => {
       if (element.id === BUTTON_ID || element.id === TOAST_ID) {
         return false;
@@ -222,10 +222,43 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return candidates[0] || null;
   }
 
-  function addPlusMarker(letter) {
-    clearPreviousMarkers();
+  function findQuestionBlock(questionNumber) {
+    const number = Number(questionNumber);
+    if (!Number.isFinite(number)) {
+      return null;
+    }
 
-    const answerElement = findAnswerElement(letter);
+    const questionPattern = new RegExp(`^\\s*${number}\\s*[\\).]`, "i");
+    const optionPattern = /(?:^|\n|\s)(A|B|C|D|E)\s*[\).:\-]?\s+/i;
+    const candidates = Array.from(
+      document.body.querySelectorAll("section, article, form, fieldset, li, div")
+    ).filter((element) => {
+      if (element.id === BUTTON_ID || element.id === TOAST_ID) {
+        return false;
+      }
+
+      if (element.closest(`#${BUTTON_ID}, #${TOAST_ID}`)) {
+        return false;
+      }
+
+      const text = getVisibleText(element);
+      return text.length >= 20 && text.length <= 5000 && questionPattern.test(text) && optionPattern.test(text);
+    });
+
+    candidates.sort((a, b) => {
+      const textLengthDifference = getVisibleText(a).length - getVisibleText(b).length;
+      if (textLengthDifference !== 0) {
+        return textLengthDifference;
+      }
+
+      return a.querySelectorAll("*").length - b.querySelectorAll("*").length;
+    });
+
+    return candidates[0] || null;
+  }
+
+  function addPlusMarker(letter, root = document.body) {
+    const answerElement = findAnswerElement(letter, root);
     if (!answerElement) {
       return false;
     }
@@ -237,6 +270,46 @@ const SERVER_URL = "https://joker67.up.railway.app";
     answerElement.appendChild(marker);
     answerElement.classList.add(HIGHLIGHT_CLASS);
     return true;
+  }
+
+  function normalizeAnswers(data) {
+    if (Array.isArray(data.answers)) {
+      return data.answers
+        .map((item, index) => ({
+          questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
+          answer: normalizeAnswer(item.answer || item.letter || item.correct)
+        }))
+        .filter((item) => item.answer !== "UNKNOWN" && Number.isFinite(item.questionNumber));
+    }
+
+    const answer = normalizeAnswer(data.answer);
+    if (answer === "UNKNOWN") {
+      return [];
+    }
+
+    return [
+      {
+        questionNumber: 1,
+        answer
+      }
+    ];
+  }
+
+  function addPlusMarkers(answers) {
+    clearPreviousMarkers();
+
+    let markedCount = 0;
+
+    answers.forEach((item) => {
+      const questionBlock = findQuestionBlock(item.questionNumber);
+      const markerAdded = addPlusMarker(item.answer, questionBlock || document.body);
+
+      if (markerAdded) {
+        markedCount += 1;
+      }
+    });
+
+    return markedCount;
   }
 
   async function handleAskClick() {
@@ -268,13 +341,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
         throw new Error(errorMessage);
       }
 
-      const answer = normalizeAnswer(data.answer);
-      if (answer === "UNKNOWN") {
+      const answers = normalizeAnswers(data);
+      if (!answers.length) {
         showToast("ИИ не уверен в ответе.", false);
         return;
       }
 
-      const markerAdded = addPlusMarker(answer);
+      const answer = answers.map((item) => `${item.questionNumber}: ${item.answer}`).join(", ");
+      const markerAdded = addPlusMarkers(answers) > 0;
       if (markerAdded) {
         showToast(`Предполагаемый ответ: ${answer}. Вариант отмечен зелёным плюсиком.`, false);
       } else {

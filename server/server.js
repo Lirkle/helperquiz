@@ -12,7 +12,7 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 
 const SYSTEM_PROMPT =
-  "Ты помощник для учебной тренировки. Найди вопрос и варианты ответа в тексте страницы. Верни только одну букву правильного варианта: A, B, C, D или E. Если не уверен, верни UNKNOWN.";
+  "Ты помощник для учебной тренировки. Найди все вопросы и варианты ответа в тексте страницы. Для каждого вопроса верни предполагаемую букву правильного варианта: A, B, C, D или E. Если по конкретному вопросу не уверен, верни UNKNOWN. Верни только JSON без markdown в формате: {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\"},{\"questionNumber\":2,\"answer\":\"UNKNOWN\"}]}";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -122,6 +122,7 @@ app.post("/ask", async (req, res, next) => {
 
     res.json({
       answer: result.answer,
+      answers: result.answers,
       provider: result.provider,
       model: result.model
     });
@@ -206,12 +207,89 @@ async function askProvider({ provider, apiKey, baseURL, model, text }) {
   });
 
   const rawAnswer = completion.choices?.[0]?.message?.content || "UNKNOWN";
+  const answers = parseAnswers(rawAnswer);
 
   return {
-    answer: normalizeAnswer(rawAnswer),
+    answer: answers[0]?.answer || normalizeAnswer(rawAnswer),
+    answers,
     provider,
     model
   };
+}
+
+function parseAnswers(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  const jsonText = extractJsonText(value);
+
+  if (jsonText) {
+    try {
+      const parsed = JSON.parse(jsonText);
+      const list = Array.isArray(parsed) ? parsed : parsed.answers;
+
+      if (Array.isArray(list)) {
+        return list
+          .map((item, index) => {
+            if (typeof item === "string") {
+              return {
+                questionNumber: index + 1,
+                answer: normalizeAnswer(item)
+              };
+            }
+
+            return {
+              questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
+              answer: normalizeAnswer(item.answer || item.letter || item.correct)
+            };
+          })
+          .filter((item) => item.answer !== "UNKNOWN" && Number.isFinite(item.questionNumber));
+      }
+    } catch (error) {
+      console.warn("Could not parse model JSON answer:", getErrorMessage(error));
+    }
+  }
+
+  const singleAnswer = normalizeAnswer(value);
+  if (singleAnswer === "UNKNOWN") {
+    return [];
+  }
+
+  return [
+    {
+      questionNumber: 1,
+      answer: singleAnswer
+    }
+  ];
+}
+
+function extractJsonText(value) {
+  const trimmed = value.trim();
+
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    return trimmed;
+  }
+
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+
+  if (objectStart !== -1 && objectEnd > objectStart) {
+    return trimmed.slice(objectStart, objectEnd + 1);
+  }
+
+  const arrayStart = trimmed.indexOf("[");
+  const arrayEnd = trimmed.lastIndexOf("]");
+
+  if (arrayStart !== -1 && arrayEnd > arrayStart) {
+    return trimmed.slice(arrayStart, arrayEnd + 1);
+  }
+
+  return "";
 }
 
 function normalizeAnswer(value) {
