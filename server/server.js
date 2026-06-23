@@ -12,7 +12,7 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 
 const SYSTEM_PROMPT =
-  "Ты помощник для учебной тренировки. Найди все вопросы и варианты ответа в тексте страницы. Для каждого вопроса верни предполагаемую букву правильного варианта: A, B, C, D или E. Если по конкретному вопросу не уверен, верни UNKNOWN. Верни только JSON без markdown в формате: {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\"},{\"questionNumber\":2,\"answer\":\"UNKNOWN\"}]}";
+  "Ты помощник для учебной тренировки. Найди только реально присутствующие в тексте вопросы с вариантами A, B, C, D, E. Для каждого такого вопроса верни предполагаемую букву правильного варианта: A, B, C, D или E. Не выдумывай вопросы и номера. Если по конкретному вопросу не уверен, верни UNKNOWN. Верни только JSON без markdown в формате: {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\"},{\"questionNumber\":2,\"answer\":\"UNKNOWN\"}]}";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));

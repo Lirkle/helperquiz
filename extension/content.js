@@ -52,13 +52,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
         right: 16px;
         z-index: 2147483647;
         box-sizing: border-box;
-        width: min(320px, calc(100vw - 32px));
+        width: min(280px, calc(100vw - 32px));
         border-radius: 8px;
-        padding: 12px 14px;
+        padding: 10px 12px;
         background: #111827;
         color: #ffffff;
         font-family: Arial, sans-serif;
-        font-size: 14px;
+        font-size: 13px;
         line-height: 1.35;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
       }
@@ -83,7 +83,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .${HIGHLIGHT_CLASS} {
         outline: 2px solid #16a34a !important;
         outline-offset: 2px !important;
-        border-radius: 4px !important;
+        border-radius: 6px !important;
       }
     `;
     document.documentElement.appendChild(style);
@@ -121,7 +121,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
       if (toast.parentNode) {
         toast.remove();
       }
-    }, 5000);
+    }, 4000);
   }
 
   function clearPreviousMarkers() {
@@ -138,6 +138,24 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     const normalized = answer.trim().toUpperCase();
     return VALID_ANSWERS.has(normalized) ? normalized : "UNKNOWN";
+  }
+
+  function normalizeAnswers(data) {
+    if (Array.isArray(data.answers)) {
+      return data.answers
+        .map((item, index) => ({
+          questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
+          answer: normalizeAnswer(item.answer || item.letter || item.correct)
+        }))
+        .filter((item) => item.answer !== "UNKNOWN" && Number.isFinite(item.questionNumber));
+    }
+
+    const answer = normalizeAnswer(data.answer);
+    if (answer === "UNKNOWN") {
+      return [];
+    }
+
+    return [{ questionNumber: 1, answer }];
   }
 
   function getVisibleText(element) {
@@ -157,69 +175,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return (element.innerText || element.textContent || "").trim();
   }
 
-  function isLikelyAnswerElement(element, letter) {
-    const text = getVisibleText(element);
-    if (!text || text.length > 500) {
-      return false;
-    }
-
-    const escapedLetter = letter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const patterns = [
-      new RegExp(`^\\s*${escapedLetter}\\s*[\\).:\\-]\\s+`, "i"),
-      new RegExp(`^\\s*\\(?\\s*${escapedLetter}\\s*\\)\\s+`, "i"),
-      new RegExp(`^\\s*вариант\\s+${escapedLetter}\\b`, "i"),
-      new RegExp(`^\\s*answer\\s+${escapedLetter}\\b`, "i"),
-      new RegExp(`^\\s*option\\s+${escapedLetter}\\b`, "i")
-    ];
-
-    return patterns.some((pattern) => pattern.test(text));
-  }
-
-  function scoreCandidate(element) {
-    const tagName = element.tagName.toLowerCase();
-    const text = getVisibleText(element);
-    let score = 0;
-
-    if (["label", "li", "button"].includes(tagName)) {
-      score += 4;
-    }
-
-    if (["p", "div", "span"].includes(tagName)) {
-      score += 2;
-    }
-
-    if (element.querySelector("input[type='radio'], input[type='checkbox']")) {
-      score += 3;
-    }
-
-    if (text.length <= 160) {
-      score += 2;
-    }
-
-    if (text.length <= 80) {
-      score += 1;
-    }
-
-    return score;
-  }
-
-  function findAnswerElement(letter, root = document.body) {
-    const candidates = Array.from(
-      root.querySelectorAll("label, li, button, p, div, span")
-    ).filter((element) => {
-      if (element.id === BUTTON_ID || element.id === TOAST_ID) {
-        return false;
-      }
-
-      if (element.closest(`#${BUTTON_ID}, #${TOAST_ID}`)) {
-        return false;
-      }
-
-      return isLikelyAnswerElement(element, letter);
-    });
-
-    candidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
-    return candidates[0] || null;
+  function isOwnUi(element) {
+    return Boolean(
+      element.id === BUTTON_ID ||
+        element.id === TOAST_ID ||
+        element.closest(`#${BUTTON_ID}, #${TOAST_ID}`)
+    );
   }
 
   function findQuestionBlock(questionNumber) {
@@ -228,27 +189,22 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return null;
     }
 
-    const questionPattern = new RegExp(`^\\s*${number}\\s*[\\).]`, "i");
-    const optionPattern = /(?:^|\n|\s)(A|B|C|D|E)\s*[\).:\-]?\s+/i;
+    const questionPattern = new RegExp(`^\\s*${number}\\s*[\\).]`);
     const candidates = Array.from(
       document.body.querySelectorAll("section, article, form, fieldset, li, div")
     ).filter((element) => {
-      if (element.id === BUTTON_ID || element.id === TOAST_ID) {
-        return false;
-      }
-
-      if (element.closest(`#${BUTTON_ID}, #${TOAST_ID}`)) {
+      if (isOwnUi(element)) {
         return false;
       }
 
       const text = getVisibleText(element);
-      return text.length >= 20 && text.length <= 5000 && questionPattern.test(text) && optionPattern.test(text);
+      return text.length >= 20 && text.length <= 6000 && questionPattern.test(text);
     });
 
     candidates.sort((a, b) => {
-      const textLengthDifference = getVisibleText(a).length - getVisibleText(b).length;
-      if (textLengthDifference !== 0) {
-        return textLengthDifference;
+      const lengthDifference = getVisibleText(a).length - getVisibleText(b).length;
+      if (lengthDifference !== 0) {
+        return lengthDifference;
       }
 
       return a.querySelectorAll("*").length - b.querySelectorAll("*").length;
@@ -257,7 +213,88 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return candidates[0] || null;
   }
 
-  function addPlusMarker(letter, root = document.body) {
+  function hasLetterBadge(element, letter) {
+    return Array.from(element.querySelectorAll("*")).some((child) => {
+      const childText = getVisibleText(child);
+      return childText === letter && !child.querySelector("input, textarea, select, button");
+    });
+  }
+
+  function hasLetterPrefix(element, letter) {
+    const text = getVisibleText(element);
+    const escapedLetter = letter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patterns = [
+      new RegExp(`^\\s*${escapedLetter}\\s*[\\).:\\-]\\s+`, "i"),
+      new RegExp(`^\\s*\\(?\\s*${escapedLetter}\\s*\\)\\s+`, "i")
+    ];
+
+    return patterns.some((pattern) => pattern.test(text));
+  }
+
+  function isLikelyOptionRow(element, letter) {
+    const text = getVisibleText(element);
+    if (!text || text.length < 2 || text.length > 900) {
+      return false;
+    }
+
+    if (text === letter) {
+      return false;
+    }
+
+    return hasLetterPrefix(element, letter) || hasLetterBadge(element, letter);
+  }
+
+  function scoreOptionRow(element, letter) {
+    const text = getVisibleText(element);
+    let score = 0;
+
+    if (element.querySelector("input[type='radio'], input[type='checkbox']")) {
+      score += 8;
+    }
+
+    if (hasLetterBadge(element, letter)) {
+      score += 6;
+    }
+
+    if (hasLetterPrefix(element, letter)) {
+      score += 5;
+    }
+
+    if (["label", "li", "button"].includes(element.tagName.toLowerCase())) {
+      score += 2;
+    }
+
+    if (text.length <= 220) {
+      score += 3;
+    }
+
+    score -= Math.min(element.querySelectorAll("*").length, 30) / 10;
+    return score;
+  }
+
+  function findAnswerElement(letter, root) {
+    const searchRoot = root || document.body;
+    const candidates = Array.from(
+      searchRoot.querySelectorAll("label, li, button, p, div, span")
+    ).filter((element) => !isOwnUi(element) && isLikelyOptionRow(element, letter));
+
+    candidates.sort((a, b) => scoreOptionRow(b, letter) - scoreOptionRow(a, letter));
+    return candidates[0] || null;
+  }
+
+  function findMarkerTarget(answerElement, letter) {
+    const descendants = Array.from(answerElement.querySelectorAll("span, p, div, strong, em, b"));
+    const textTargets = descendants
+      .filter((element) => {
+        const text = getVisibleText(element);
+        return text.length > 3 && text !== letter && !element.querySelector("input, textarea, select");
+      })
+      .sort((a, b) => getVisibleText(a).length - getVisibleText(b).length);
+
+    return textTargets[0] || answerElement;
+  }
+
+  function addPlusMarker(letter, root) {
     const answerElement = findAnswerElement(letter, root);
     if (!answerElement) {
       return false;
@@ -267,32 +304,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
     marker.className = MARKER_CLASS;
     marker.textContent = "+";
     marker.title = `Предполагаемый ответ: ${letter}`;
-    answerElement.appendChild(marker);
+
+    const markerTarget = findMarkerTarget(answerElement, letter);
+    markerTarget.appendChild(marker);
     answerElement.classList.add(HIGHLIGHT_CLASS);
     return true;
-  }
-
-  function normalizeAnswers(data) {
-    if (Array.isArray(data.answers)) {
-      return data.answers
-        .map((item, index) => ({
-          questionNumber: Number(item.questionNumber || item.number || item.question || index + 1),
-          answer: normalizeAnswer(item.answer || item.letter || item.correct)
-        }))
-        .filter((item) => item.answer !== "UNKNOWN" && Number.isFinite(item.questionNumber));
-    }
-
-    const answer = normalizeAnswer(data.answer);
-    if (answer === "UNKNOWN") {
-      return [];
-    }
-
-    return [
-      {
-        questionNumber: 1,
-        answer
-      }
-    ];
   }
 
   function addPlusMarkers(answers) {
@@ -302,8 +318,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
     answers.forEach((item) => {
       const questionBlock = findQuestionBlock(item.questionNumber);
-      const markerAdded = addPlusMarker(item.answer, questionBlock || document.body);
+      if (!questionBlock && answers.length > 1) {
+        return;
+      }
 
+      const markerAdded = addPlusMarker(item.answer, questionBlock || document.body);
       if (markerAdded) {
         markedCount += 1;
       }
@@ -321,7 +340,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     clearPreviousMarkers();
     button.disabled = true;
     button.textContent = "Думаю...";
-    showToast("Отправляю текст страницы на сервер...", false);
+    showToast("Ищу ответы...", false);
 
     try {
       const response = await fetch(`${SERVER_URL}/ask`, {
@@ -343,16 +362,15 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       const answers = normalizeAnswers(data);
       if (!answers.length) {
-        showToast("ИИ не уверен в ответе.", false);
+        showToast("ИИ не уверен в ответах.", false);
         return;
       }
 
-      const answer = answers.map((item) => `${item.questionNumber}: ${item.answer}`).join(", ");
-      const markerAdded = addPlusMarkers(answers) > 0;
-      if (markerAdded) {
-        showToast(`Предполагаемый ответ: ${answer}. Вариант отмечен зелёным плюсиком.`, false);
+      const markedCount = addPlusMarkers(answers);
+      if (markedCount > 0) {
+        showToast(`Плюсиков поставлено: ${markedCount}`, false);
       } else {
-        showToast(`Предполагаемый ответ: ${answer}. Вариант на странице не найден.`, false);
+        showToast("Ответы получены, но варианты на странице не найдены.", false);
       }
     } catch (error) {
       showToast(`Ошибка: ${error.message}`, true);
