@@ -12,10 +12,11 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 const PRIMARY_PROVIDER = normalizeProvider(process.env.PRIMARY_PROVIDER) || "openai";
 const AI_PROVIDER_TIMEOUT_MS = normalizePositiveInteger(process.env.AI_PROVIDER_TIMEOUT_MS, 3000);
+const OPEN_QUESTION_MAX_TOKENS = normalizePositiveInteger(process.env.OPEN_QUESTION_MAX_TOKENS, 80);
 const MULTI_GROUP_PROMPT =
   "If options contain multiple groupNumber values, treat each groupNumber as a separate visible question and return answers for every group you can solve. In every answer object, set questionNumber equal to that option's groupNumber. For radio/single-choice questions, return one best option per groupNumber.";
 const OPEN_QUESTION_SYSTEM_PROMPT =
-  "You answer the user's selected question directly and concisely. Return plain text only, not JSON or markdown.";
+  "You answer the user's selected question directly. Return only the shortest useful plain-text answer, usually one sentence. Do not use JSON or markdown.";
 
 const SYSTEM_PROMPT =
   "You are a study quiz assistant. You receive pageText and, when detected, an options array with optionId, groupNumber, inputType, letter, and text. Choose answers only from the provided options. Solve from the question and option text; ignore UI feedback such as Correct, Incorrect, Правильно, Неправильно, colors, buttons, timers, ads, and old answers. For radio/single-choice questions, return one best option. For checkbox/multiple-choice questions, return every correct option as separate objects in answers, using the same questionNumber if needed. For checkbox questions be conservative: select an option only when it directly and independently satisfies the exact question wording; do not select related-but-wrong, movable, immovable, opposite, or merely same-topic options. If a checkbox option is not clearly correct, omit it. Return only JSON, no markdown, exactly like {\"answers\":[{\"questionNumber\":1,\"answer\":\"A\",\"optionId\":\"pn-opt-1\"},{\"questionNumber\":1,\"answer\":\"C\",\"optionId\":\"pn-opt-3\"}]}. Do not invent questions, numbers, letters, or optionIds. If unsure, return {\"answers\":[]}.";
@@ -224,7 +225,7 @@ async function askProvider({ provider, apiKey, baseURL, model, text, options }) 
     maxRetries: 0
   });
 
-  const completion = await client.chat.completions.create({
+  const request = {
     model,
     temperature: 0,
     messages: [
@@ -237,7 +238,17 @@ async function askProvider({ provider, apiKey, baseURL, model, text, options }) 
         content: buildUserPrompt(text, options)
       }
     ]
-  });
+  };
+
+  if (!options.length) {
+    if (provider === "openai") {
+      request.max_completion_tokens = OPEN_QUESTION_MAX_TOKENS;
+    } else {
+      request.max_tokens = OPEN_QUESTION_MAX_TOKENS;
+    }
+  }
+
+  const completion = await client.chat.completions.create(request);
 
   const rawAnswer = completion.choices?.[0]?.message?.content || "UNKNOWN";
   if (!options.length) {

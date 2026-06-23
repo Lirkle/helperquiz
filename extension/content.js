@@ -11,7 +11,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
   const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const VALID_ANSWERS = new Set(OPTION_LETTERS);
-  const ASK_TIMEOUT_MS = 15000;
+  const ASK_TIMEOUT_MS = 45000;
   const MAX_GROUPS_PER_REQUEST = 1;
 
   let autoAskTimer = null;
