@@ -664,14 +664,21 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return `Current quiz question and options:\n${questionText}\n\nDetected options:\n${optionLines}`;
   }
 
-  function buildAskPayload() {
+  function buildOptionOnlyPayload() {
     const rows = selectActiveRows(collectOptionRows());
     const groups = groupOptionRows(rows);
     const options = buildOptionPayload(rows, groups);
 
     return {
-      text: getFocusedQuizText(rows, options),
+      rows,
       options
+    };
+  }
+
+  function buildAskPayload(optionPayload = buildOptionOnlyPayload()) {
+    return {
+      text: getFocusedQuizText(optionPayload.rows, optionPayload.options),
+      options: optionPayload.options
     };
   }
 
@@ -815,7 +822,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
-    const payload = buildAskPayload();
+    const optionPayload = buildOptionOnlyPayload();
+    const payload = {
+      text: "",
+      options: optionPayload.options
+    };
     if (payload.options.length < 2) {
       lastDebug = {
         status: "no-options",
@@ -868,9 +879,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
+    const askPayload = buildAskPayload(optionPayload);
     isAutoAsking = true;
     lastAutoAskSignature = signature;
     lastDebug.status = "requesting";
+    lastDebug.payload = askPayload;
     addDebugEvent("request", { signature, optionCount: payload.options.length });
 
     const controller = new AbortController();
@@ -884,7 +897,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(askPayload),
         signal: controller.signal
       });
 
@@ -898,7 +911,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
         throw new Error(data.error || `Server error ${response.status}`);
       }
 
-      const currentPayload = buildAskPayload();
+      const currentOptionPayload = buildOptionOnlyPayload();
+      const currentPayload = {
+        text: "",
+        options: currentOptionPayload.options
+      };
       if (getAutoAskSignature(currentPayload) !== signature) {
         lastDebug.status = "stale-response";
         lastDebug.currentPayload = currentPayload;
