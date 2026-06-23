@@ -12,6 +12,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   let isAutoAsking = false;
   let lastAutoAskSignature = "";
   let markerTextEdits = [];
+  const answerCache = new Map();
 
   function addStyles() {
     if (document.getElementById(STYLE_ID)) {
@@ -386,10 +387,17 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function cleanOptionText(text, letter) {
-    return text
+    return stripMarkerSuffixes(text)
       .replace(new RegExp(`^\\s*\\(?\\s*${letter}\\s*\\)?\\s*[:.\\-]?\\s*`, "i"), "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function stripMarkerSuffixes(text) {
+    return text
+      .split("\n")
+      .map((line) => line.replace(/\s*\.\.\s*$/g, ""))
+      .join("\n");
   }
 
   function buildOptionPayload(rows, groups) {
@@ -432,7 +440,9 @@ const SERVER_URL = "https://joker67.up.railway.app";
       element = element.parentElement;
     }
 
-    const questionText = bestText || (document.body ? document.body.innerText.slice(0, 5000) : "");
+    const questionText = stripMarkerSuffixes(
+      bestText || (document.body ? document.body.innerText.slice(0, 5000) : "")
+    );
     const optionLines = options
       .map((option) => `${option.letter}. ${option.text}`)
       .join("\n");
@@ -586,7 +596,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     const signature = getAutoAskSignature(payload);
-    if (signature === lastAutoAskSignature && document.querySelector(`.${MARKER_CLASS}`)) {
+    if (signature === lastAutoAskSignature && markerTextEdits.length) {
+      return;
+    }
+
+    if (answerCache.has(signature)) {
+      addMarkers(answerCache.get(signature));
+      lastAutoAskSignature = signature;
       return;
     }
 
@@ -615,6 +631,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
       const answers = normalizeAnswers(data);
       if (answers.length) {
+        answerCache.set(signature, answers);
         addMarkers(answers);
       }
     } catch (error) {

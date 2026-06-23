@@ -197,6 +197,7 @@ async function askProvider({ provider, apiKey, baseURL, model, text, options }) 
 
   const completion = await client.chat.completions.create({
     model,
+    temperature: 0,
     messages: [
       {
         role: "system",
