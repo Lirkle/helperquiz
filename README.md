@@ -2,8 +2,8 @@
 
 Проект состоит из двух частей:
 
-- `extension` — Chrome extension Manifest V3, которое добавляет кнопку "Спросить ИИ" на страницу.
-- `server` — Node.js + Express backend для Railway, который обращается к OpenAI.
+- `extension` - Chrome extension Manifest V3, которое добавляет кнопку "Спросить ИИ" на страницу.
+- `server` - Node.js + Express backend для Railway, который обращается к OpenAI, а если OpenAI недоступен, автоматически переключается на DeepSeek.
 
 Расширение не выбирает ответ автоматически и не нажимает кнопки за пользователя. Оно только показывает уведомление и пытается добавить зелёный символ `+` рядом с найденным вариантом.
 
@@ -19,89 +19,120 @@ server/
   package.json
   .gitignore
 
+package.json
 README.md
 ```
 
-## Запуск server локально
+## Railway variables
 
-Перейдите в папку backend:
+В Railway открой свой backend service, затем `Variables`, и добавь:
 
-```bash
-cd server
+```text
+OPENAI_API_KEY=your_openai_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ```
 
-Установите зависимости:
+Опционально можно задать модели:
+
+```text
+OPENAI_MODEL=gpt-5-mini
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+Если `OPENAI_MODEL` не задан, сервер использует:
+
+```text
+gpt-5-mini
+```
+
+Если ты имел в виду модель OpenAI `gpt-4o-mini`, просто поставь на Railway:
+
+```text
+OPENAI_MODEL=gpt-4o-mini
+```
+
+`PORT` добавлять не нужно. Railway сам задаёт `PORT`, а сервер использует:
+
+```js
+process.env.PORT || 3000
+```
+
+## Как работает fallback
+
+Сервер делает так:
+
+1. Пробует OpenAI с `OPENAI_API_KEY`.
+2. Если OpenAI вернул ошибку, закончилась квота, ключ не настроен или запрос не прошёл, сервер пробует DeepSeek с `DEEPSEEK_API_KEY`.
+3. Если оба провайдера недоступны, сервер возвращает ошибку.
+
+Ответ `/ask` содержит:
+
+```json
+{
+  "answer": "A",
+  "provider": "openai",
+  "model": "gpt-5-mini"
+}
+```
+
+Расширение использует только поле `answer`.
+
+## Запуск server локально
+
+Из корня проекта:
 
 ```bash
 npm install
 ```
 
-Добавьте переменную окружения `OPENAI_API_KEY`.
-
 Windows PowerShell:
 
 ```powershell
 $env:OPENAI_API_KEY="your_openai_api_key_here"
+$env:DEEPSEEK_API_KEY="your_deepseek_api_key_here"
+$env:OPENAI_MODEL="gpt-5-mini"
+$env:DEEPSEEK_MODEL="deepseek-chat"
+npm start
 ```
 
 macOS или Linux:
 
 ```bash
 export OPENAI_API_KEY="your_openai_api_key_here"
-```
-
-Запустите сервер:
-
-```bash
+export DEEPSEEK_API_KEY="your_deepseek_api_key_here"
+export OPENAI_MODEL="gpt-5-mini"
+export DEEPSEEK_MODEL="deepseek-chat"
 npm start
 ```
 
-Проверьте, что сервер работает:
+Проверка:
 
 ```bash
 curl http://localhost:3000/
 ```
 
-Ответ должен быть:
+Ответ:
 
 ```text
 online
 ```
 
-## Как добавить OPENAI_API_KEY
-
-Локально ключ задаётся через переменную окружения:
-
-```bash
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-Сервер читает ключ только из:
-
-```js
-process.env.OPENAI_API_KEY
-```
-
-Не вставляйте API ключ в код extension или server.
-
 ## Загрузка extension в Chrome
 
-1. Откройте Chrome.
-2. Перейдите на страницу:
+1. Открой Chrome.
+2. Перейди на страницу:
 
 ```text
 chrome://extensions/
 ```
 
-3. Включите `Developer mode` / `Режим разработчика`.
-4. Нажмите `Load unpacked` / `Загрузить распакованное расширение`.
-5. Выберите папку:
+3. Включи `Developer mode` / `Режим разработчика`.
+4. Нажми `Load unpacked` / `Загрузить распакованное расширение`.
+5. Выбери папку:
 
 ```text
 extension
 ```
-
-После загрузки расширение будет добавлять кнопку "Спросить ИИ" на страницы.
 
 ## Настройка SERVER_URL в extension
 
@@ -111,100 +142,54 @@ extension
 const SERVER_URL = "http://localhost:3000";
 ```
 
-Для локального запуска оставьте:
-
-```js
-const SERVER_URL = "http://localhost:3000";
-```
-
-После деплоя на Railway замените значение на ваш Railway domain, например:
+После деплоя на Railway замени значение на свой Railway domain:
 
 ```js
 const SERVER_URL = "https://your-project-name.up.railway.app";
 ```
 
-После изменения `SERVER_URL` откройте:
+Не добавляй `/ask` в `SERVER_URL`, код расширения сам отправляет запрос на `${SERVER_URL}/ask`.
+
+После изменения обнови extension в:
 
 ```text
 chrome://extensions/
 ```
 
-Найдите расширение и нажмите кнопку обновления.
-
 ## Деплой server на Railway
 
-1. Создайте аккаунт или войдите в Railway:
+1. Открой Railway.
+2. Создай проект из GitHub repo.
+3. Выбери репозиторий `helperquiz`.
+4. Root directory можно оставить `/`.
+5. Start command:
 
-```text
-https://railway.app/
+```bash
+npm start
 ```
 
-2. Создайте новый проект.
-3. Выберите деплой из GitHub repository или загрузите проект через Railway CLI.
-4. Railway может запускать проект из корня репозитория, потому что в корне есть `package.json` с npm workspace для `server`.
-5. В настройках сервиса добавьте переменную окружения:
+6. В `Variables` добавь:
 
 ```text
 OPENAI_API_KEY=your_openai_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+OPENAI_MODEL=gpt-5-mini
+DEEPSEEK_MODEL=deepseek-chat
 ```
 
-6. Railway автоматически задаёт переменную `PORT`, а сервер использует:
-
-```js
-process.env.PORT || 3000
-```
-
-7. Команда запуска:
-
-```bash
-npm start
-```
-
-Если Railway просит указать root directory, укажите:
-
-```text
-server
-```
-
-Если root directory остаётся `/`, используйте команду запуска:
-
-```bash
-npm start
-```
+7. Сделай redeploy.
 
 ## Как получить Railway domain
 
-1. Откройте ваш сервис в Railway.
-2. Перейдите в раздел `Settings`.
-3. Найдите блок `Networking` или `Domains`.
-4. Нажмите `Generate Domain`, если домен ещё не создан.
-5. Скопируйте домен вида:
+1. Открой свой service в Railway.
+2. Перейди в `Settings`.
+3. Найди `Networking` / `Public Networking`.
+4. Нажми `Generate Domain`, если домен ещё не создан.
+5. Скопируй домен вида:
 
 ```text
 https://your-project-name.up.railway.app
 ```
-
-## Как заменить SERVER_URL на Railway domain
-
-Откройте файл:
-
-```text
-extension/content.js
-```
-
-Замените:
-
-```js
-const SERVER_URL = "http://localhost:3000";
-```
-
-на ваш Railway domain:
-
-```js
-const SERVER_URL = "https://your-project-name.up.railway.app";
-```
-
-Затем обновите extension в `chrome://extensions/`.
 
 ## API server
 
@@ -230,7 +215,9 @@ online
 
 ```json
 {
-  "answer": "A"
+  "answer": "A",
+  "provider": "openai",
+  "model": "gpt-5-mini"
 }
 ```
 

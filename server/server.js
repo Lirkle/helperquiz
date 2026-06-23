@@ -5,9 +5,9 @@ const OpenAI = require("openai");
 const app = express();
 const port = process.env.PORT || 3000;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 
 const SYSTEM_PROMPT =
   "Ты помощник для учебной тренировки. Найди вопрос и варианты ответа в тексте страницы. Верни только одну букву правильного варианта: A, B, C, D или E. Если не уверен, верни UNKNOWN.";
@@ -21,12 +21,6 @@ app.get("/", (req, res) => {
 
 app.post("/ask", async (req, res, next) => {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({
-        error: "OPENAI_API_KEY is not configured"
-      });
-    }
-
     const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
 
     if (!text) {
@@ -35,25 +29,12 @@ app.post("/ask", async (req, res, next) => {
       });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT
-        },
-        {
-          role: "user",
-          content: text
-        }
-      ]
-    });
-
-    const rawAnswer = completion.choices?.[0]?.message?.content || "UNKNOWN";
-    const answer = normalizeAnswer(rawAnswer);
+    const result = await askWithFallback(text);
 
     res.json({
-      answer
+      answer: result.answer,
+      provider: result.provider,
+      model: result.model
     });
   } catch (error) {
     next(error);
@@ -70,9 +51,79 @@ app.use((error, req, res, next) => {
   console.error(error);
 
   res.status(500).json({
-    error: "Internal server error"
+    error: error.publicMessage || "Internal server error"
   });
 });
+
+async function askWithFallback(text) {
+  const errors = [];
+
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      return await askProvider({
+        provider: "openai",
+        apiKey: process.env.OPENAI_API_KEY,
+        model: OPENAI_MODEL,
+        text
+      });
+    } catch (error) {
+      errors.push(formatProviderError("openai", error));
+      console.warn("OpenAI request failed, trying DeepSeek fallback:", getErrorMessage(error));
+    }
+  } else {
+    errors.push("openai: OPENAI_API_KEY is not configured");
+  }
+
+  if (process.env.DEEPSEEK_API_KEY) {
+    try {
+      return await askProvider({
+        provider: "deepseek",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        baseURL: DEEPSEEK_BASE_URL,
+        model: DEEPSEEK_MODEL,
+        text
+      });
+    } catch (error) {
+      errors.push(formatProviderError("deepseek", error));
+      console.error("DeepSeek fallback failed:", getErrorMessage(error));
+    }
+  } else {
+    errors.push("deepseek: DEEPSEEK_API_KEY is not configured");
+  }
+
+  const error = new Error(`All AI providers failed. ${errors.join("; ")}`);
+  error.publicMessage = "All AI providers failed or are not configured";
+  throw error;
+}
+
+async function askProvider({ provider, apiKey, baseURL, model, text }) {
+  const client = new OpenAI({
+    apiKey,
+    baseURL
+  });
+
+  const completion = await client.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: "system",
+        content: SYSTEM_PROMPT
+      },
+      {
+        role: "user",
+        content: text
+      }
+    ]
+  });
+
+  const rawAnswer = completion.choices?.[0]?.message?.content || "UNKNOWN";
+
+  return {
+    answer: normalizeAnswer(rawAnswer),
+    provider,
+    model
+  };
+}
 
 function normalizeAnswer(value) {
   if (typeof value !== "string") {
@@ -83,6 +134,28 @@ function normalizeAnswer(value) {
   return match ? match[1] : "UNKNOWN";
 }
 
+function formatProviderError(provider, error) {
+  return `${provider}: ${getErrorMessage(error)}`;
+}
+
+function getErrorMessage(error) {
+  if (!error) {
+    return "unknown error";
+  }
+
+  if (error.status && error.message) {
+    return `${error.status} ${error.message}`;
+  }
+
+  if (error.message) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
+  console.log(`OpenAI model: ${OPENAI_MODEL}`);
+  console.log(`DeepSeek model: ${DEEPSEEK_MODEL}`);
 });
