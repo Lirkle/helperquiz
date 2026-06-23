@@ -13,6 +13,7 @@
       ],
       "js": [
         "banks/pm07_content_management_systems_quiz_bank.js",
+        "banks/moo_web_technologies_ws_quiz_bank.js",
         "content.js"
       ],
       "run_at": "document_idle"
