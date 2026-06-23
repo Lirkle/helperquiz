@@ -489,6 +489,70 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return groups.filter((group) => Object.keys(group).length >= 2);
   }
 
+  function groupOptionRowObjects(rows) {
+    const groups = [];
+    let currentGroup = [];
+    let currentLetters = new Set();
+    let previousLetterIndex = -1;
+
+    rows.forEach((row) => {
+      const letterIndex = OPTION_LETTERS.indexOf(row.letter);
+      const shouldStartNewGroup =
+        row.letter === "A" ||
+        currentLetters.has(row.letter) ||
+        letterIndex <= previousLetterIndex;
+
+      if (shouldStartNewGroup && currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [];
+        currentLetters = new Set();
+      }
+
+      currentGroup.push(row);
+      currentLetters.add(row.letter);
+      previousLetterIndex = letterIndex;
+    });
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups.filter((group) => group.length >= 2);
+  }
+
+  function getViewportScore(element) {
+    const rect = element.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
+
+    if (!visibleWidth || !visibleHeight) {
+      return 0;
+    }
+
+    const centerY = rect.top + rect.height / 2;
+    const distancePenalty = Math.abs(centerY - viewportHeight / 2) / Math.max(viewportHeight, 1);
+    return visibleWidth * visibleHeight * (1 - Math.min(distancePenalty, 0.9));
+  }
+
+  function selectActiveRows(rows) {
+    const rowGroups = groupOptionRowObjects(rows);
+    if (rowGroups.length <= 1) {
+      return rows;
+    }
+
+    const scoredGroups = rowGroups
+      .map((group) => ({
+        group,
+        score: group.reduce((total, row) => total + getViewportScore(row.element), 0)
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return scoredGroups[0]?.group || rows;
+  }
+
   function cleanOptionText(text, letter) {
     return stripMarkerSuffixes(text)
       .replace(new RegExp(`^\\s*\\(?\\s*${letter}\\s*\\)?\\s*[:.\\-]?\\s*`, "i"), "")
@@ -554,7 +618,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function buildAskPayload() {
-    const rows = collectOptionRows();
+    const rows = selectActiveRows(collectOptionRows());
     const groups = groupOptionRows(rows);
     const options = buildOptionPayload(rows, groups);
 
