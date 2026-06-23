@@ -317,7 +317,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   function normalizeOptionCandidate(element) {
     if (element.matches("input[type='radio'], input[type='checkbox']")) {
       const label = getAssociatedLabel(element);
-      if (label) {
+      if (label && !isLikelyQuizUiControl(getVisibleText(label))) {
         return label;
       }
 
@@ -355,8 +355,14 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function isLikelyQuizUiControl(text) {
-    return /^(сложный|ответить!?|спросить|голос|выбери один вариант(?:\s*\([^)]+\))?|закрепление:.*|выбери.*вариант)$/i.test(
-      text.trim()
+    const trimmed = text.trim();
+    return (
+      /^\d+\)\s/.test(trimmed) ||
+      /^(сложный|ответить!?|спросить|голос|выбери один вариант(?:\s*\([^)]+\))?|закрепление:.*|выбери.*вариант)$/i.test(
+        trimmed
+      ) ||
+      /^(difficult|answer!?|ask|voice)$/i.test(trimmed) ||
+      (trimmed.length > 120 && /ответить!?|сложный|закрепление:/i.test(trimmed))
     );
   }
 
@@ -562,6 +568,12 @@ const SERVER_URL = "https://joker67.up.railway.app";
       }))
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score);
+
+    if (scoredGroups.length > 1) {
+      return scoredGroups
+        .sort((a, b) => compareDocumentOrder(a.group[0].element, b.group[0].element))
+        .flatMap((item) => item.group);
+    }
 
     return scoredGroups[0]?.group || rows;
   }
