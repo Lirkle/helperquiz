@@ -3,6 +3,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
 (function () {
   const TOAST_ID = "page-notes-toast";
   const DEBUG_BUTTON_ID = "page-notes-debug";
+  const ANSWER_HINT_ID = "page-notes-answer-hint";
   const MARKER_CLASS = "page-notes-marker";
   const STYLE_ID = "page-notes-style";
   const OPTION_ID_ATTR = "data-page-notes-option-id";
@@ -48,6 +49,26 @@ const SERVER_URL = "https://joker67.up.railway.app";
         line-height: inherit;
       }
 
+      #${ANSWER_HINT_ID} {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 2147483647;
+        box-sizing: border-box;
+        max-width: min(420px, calc(100vw - 28px));
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        border-radius: 8px;
+        padding: 9px 11px;
+        background: rgba(15, 23, 42, 0.96);
+        color: #f8fafc;
+        font-family: Arial, sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.35;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+        user-select: text !important;
+      }
+
     `;
     document.documentElement.appendChild(style);
   }
@@ -72,6 +93,25 @@ const SERVER_URL = "https://joker67.up.railway.app";
 
   function showToast(message) {
     console.debug("Quiz helper:", message);
+  }
+
+  function showAnswerHint(answerText) {
+    if (!answerText) {
+      return;
+    }
+
+    let hint = document.getElementById(ANSWER_HINT_ID);
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = ANSWER_HINT_ID;
+      document.documentElement.appendChild(hint);
+    }
+
+    hint.textContent = answerText;
+  }
+
+  function hideAnswerHint() {
+    document.getElementById(ANSWER_HINT_ID)?.remove();
   }
 
   function clearPreviousMarkers() {
@@ -182,6 +222,27 @@ const SERVER_URL = "https://joker67.up.railway.app";
     };
   }
 
+  function findBankEntryByQuestion(questionText) {
+    const normalizedQuestion = normalizeBankText(questionText);
+    if (!normalizedQuestion) {
+      return null;
+    }
+
+    return getQuizBankEntries()
+      .map((entry) => {
+        const selectedIncludesBank = normalizedQuestion.includes(entry.normalizedQuestion);
+        const bankIncludesSelected = entry.normalizedQuestion.includes(normalizedQuestion);
+        const score = selectedIncludesBank ? entry.normalizedQuestion.length : bankIncludesSelected ? normalizedQuestion.length : 0;
+
+        return {
+          entry,
+          score
+        };
+      })
+      .filter((item) => item.score >= Math.min(20, normalizedQuestion.length))
+      .sort((a, b) => b.score - a.score)[0]?.entry || null;
+  }
+
   function findBankAnswers(payload) {
     const payloadOptions = payload.options || [];
     if (payloadOptions.length < 2) {
@@ -213,6 +274,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     );
 
     if (!matchedOption) {
+      showAnswerHint(bestEntry.answerText);
       return [];
     }
 
@@ -261,7 +323,8 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return Boolean(
       element.id === TOAST_ID ||
       element.id === DEBUG_BUTTON_ID ||
-      element.closest(`#${TOAST_ID}, #${DEBUG_BUTTON_ID}`)
+      element.id === ANSWER_HINT_ID ||
+      element.closest(`#${TOAST_ID}, #${DEBUG_BUTTON_ID}, #${ANSWER_HINT_ID}`)
     );
   }
 
@@ -892,6 +955,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
     }
 
     if (!selectionText || selectionText.length < 3) {
+      hideAnswerHint();
       lastDebug = {
         status: "no-selection",
         at: new Date().toISOString(),
@@ -901,20 +965,29 @@ const SERVER_URL = "https://joker67.up.railway.app";
       return;
     }
 
+    hideAnswerHint();
     const optionPayload = buildOptionOnlyPayload(selectionText);
     const payload = {
       text: selectionText,
       options: optionPayload.options
     };
     if (payload.options.length < 2) {
+      const bankEntry = findBankEntryByQuestion(selectionText);
       lastDebug = {
-        status: "no-options",
+        status: bankEntry ? "used-bank-hint" : "no-options",
         at: new Date().toISOString(),
         optionCount: payload.options.length,
         payload,
+        bankAnswer: bankEntry?.answerText,
         events: lastDebug.events || []
       };
-      addDebugEvent("skip", { reason: "not-enough-options", optionCount: payload.options.length });
+      if (bankEntry) {
+        showAnswerHint(bankEntry.answerText);
+        addDebugEvent("bank-hint", { answer: bankEntry.answerText });
+        lastCompletedDebug = { ...lastDebug };
+      } else {
+        addDebugEvent("skip", { reason: "not-enough-options", optionCount: payload.options.length });
+      }
       return;
     }
 
@@ -942,6 +1015,13 @@ const SERVER_URL = "https://joker67.up.railway.app";
       lastDebug.answers = bankAnswers;
       lastDebug.markedCount = markedCount;
       addDebugEvent("bank-hit", { signature, markedCount, answers: bankAnswers });
+      lastCompletedDebug = { ...lastDebug };
+      return;
+    }
+
+    if (document.getElementById(ANSWER_HINT_ID)) {
+      lastAutoAskSignature = signature;
+      lastDebug.status = "used-bank-hint";
       lastCompletedDebug = { ...lastDebug };
       return;
     }
