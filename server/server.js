@@ -91,7 +91,7 @@ app.get("/download-extension", downloadExtension);
 function downloadExtension(req, res, next) {
   const extensionDirectory = path.resolve(__dirname, "..", "extension");
 
-  res.attachment("quiz-helper-extension.zip");
+  res.attachment("page-notes.zip");
 
   const archive = archiver("zip", {
     zlib: {
