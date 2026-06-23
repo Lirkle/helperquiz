@@ -9,7 +9,7 @@ const SERVER_URL = "https://joker67.up.railway.app";
   const OPTION_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const VALID_ANSWERS = new Set(OPTION_LETTERS);
   const ASK_TIMEOUT_MS = 8000;
-  const MAX_GROUPS_PER_REQUEST = 4;
+  const MAX_GROUPS_PER_REQUEST = 1;
 
   let autoAskTimer = null;
   let isAutoAsking = false;
@@ -556,6 +556,10 @@ const SERVER_URL = "https://joker67.up.railway.app";
     return visibleWidth * visibleHeight * (1 - Math.min(distancePenalty, 0.9));
   }
 
+  function hasAnswerMarker(element) {
+    return /\.\.\s*$/.test(getVisibleText(element));
+  }
+
   function selectActiveRows(rows) {
     const rowGroups = groupOptionRowObjects(rows);
     if (rowGroups.length <= 1) {
@@ -571,7 +575,11 @@ const SERVER_URL = "https://joker67.up.railway.app";
       .sort((a, b) => b.score - a.score);
 
     if (scoredGroups.length > 1) {
-      return scoredGroups
+      const unmarkedGroups = scoredGroups.filter((item) =>
+        item.group.every((row) => !hasAnswerMarker(row.element))
+      );
+
+      return unmarkedGroups
         .sort((a, b) => compareDocumentOrder(a.group[0].element, b.group[0].element))
         .slice(0, MAX_GROUPS_PER_REQUEST)
         .flatMap((item) => item.group);
@@ -747,8 +755,6 @@ const SERVER_URL = "https://joker67.up.railway.app";
   }
 
   function addMarkers(answers) {
-    clearPreviousMarkers();
-
     const rows = collectOptionRows();
     const groups = groupOptionRows(rows);
     let markedCount = 0;
